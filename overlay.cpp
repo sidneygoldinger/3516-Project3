@@ -32,6 +32,7 @@ void router() {
     char buffer[bufferSize];
     printf("Attempting to recv()...\n");
     cs3516_recv(sockfd, buffer, bufferSize);
+    printf("%s\n", buffer);
 }
 
 void endhost() {
@@ -40,6 +41,7 @@ void endhost() {
     int sockfd = create_cs3516_socket();
     int bufferSize = 64;
     char buffer[bufferSize];
+    strcpy(buffer, "test string");
     printf("Attempting to send()...\n");
     struct in_addr inp;
     inet_aton("10.63.36.1", &inp);
