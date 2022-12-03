@@ -49,6 +49,10 @@ void router() {
         printf("Attempting to recv() data...\n");
         cs3516_recv(sockfd, buffer, bufferSize);
         printf("%s\n", buffer);
+        memset(buffer, 0, bufferSize);
+        cs3516_recv(sockfd, buffer, bufferSize);
+        struct ip* ip_header = ((struct ip*) buffer);
+        printf("%u\n", ip_header->ip_ttl);
     }
 
     // //decrement ttl value
@@ -107,7 +111,16 @@ void endhost() {
     // strcat(udpHeader, buffer);
     // strcat(ipHeader, udpHeader);
 
+    //construct headers
+    int ipHeaderBufferSize = 64;
+    char ipHeaderBuffer[ipHeaderBufferSize];
+    struct ip ip_header;
+    ip_header.ip_ttl = 50; //test constant
+    //inet_ntoa((struct in_addr)ip_header->ip_src
+    //ip_header.ip_src = inet_aton();
+    memcpy(ipHeaderBuffer, &ip_header, sizeof(ip_header));
     // //append headers to it somehow
+    strcat(ipHeaderBuffer, buffer);
 
     //send length of data first
     printf("Attempting to send() length...\n");
@@ -123,6 +136,11 @@ void endhost() {
     printf("Attempting to send() data...\n");
     //destination IP address
     if(cs3516_send(sockfd, buffer, bufferSize, inp.s_addr) == -1) {
+        perror("error with sending the data");
+        exit(1);
+    }
+
+    if(cs3516_send(sockfd, ipHeaderBuffer, ipHeaderBufferSize, inp.s_addr) == -1) {
         perror("error with sending the data");
         exit(1);
     }
