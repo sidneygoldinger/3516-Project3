@@ -36,8 +36,8 @@ void router() {
     //receive data length first somehow. Look at project 1?
 
     //receive data
-    int bufferSize = 64;
-    char buffer[bufferSize];
+    int bufferSize = 1000;
+    u_char buffer[bufferSize];
     u_int32_t length;
     memset(buffer, 0, bufferSize);
     //always try to recv()
@@ -52,6 +52,7 @@ void router() {
         memset(buffer, 0, bufferSize);
         cs3516_recv(sockfd, buffer, bufferSize);
         struct ip* ip_header = ((struct ip*) buffer);
+        printf("%s\n", buffer);
         printf("%u\n", ip_header->ip_ttl);
     }
 
@@ -112,15 +113,24 @@ void endhost() {
     // strcat(ipHeader, udpHeader);
 
     //construct headers
-    int ipHeaderBufferSize = 64;
-    char ipHeaderBuffer[ipHeaderBufferSize];
-    struct ip ip_header;
-    ip_header.ip_ttl = 50; //test constant
+    int ipHeaderBufferSize = sizeof(struct ip);
+    u_char ipHeaderBuffer[ipHeaderBufferSize];
+    struct ip ip_hdr;
+    ip_hdr.ip_ttl = 50;
+    struct ip* ip_header = &ip_hdr;
+    printf("before\n");
+    //ip_header->ip_ttl = 50; //test constant
+    printf("after\n");
     //inet_ntoa((struct in_addr)ip_header->ip_src
     //ip_header.ip_src = inet_aton();
-    memcpy(ipHeaderBuffer, &ip_header, sizeof(ip_header));
+    memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
     // //append headers to it somehow
-    strcat(ipHeaderBuffer, buffer);
+    u_char concatBuffer[bufferSize + ipHeaderBufferSize];
+    printf("%s\n", buffer);
+    //strcat(ipHeaderBuffer, buffer);
+    memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
+    memcpy(concatBuffer + ipHeaderBufferSize, buffer, bufferSize);
+    //printf("%s\n", ipHeaderBuffer);
 
     //send length of data first
     printf("Attempting to send() length...\n");
