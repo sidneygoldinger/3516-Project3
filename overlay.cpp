@@ -3,6 +3,7 @@
 //
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <string_view>
 
@@ -11,9 +12,12 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <string>
 #include <arpa/inet.h>
 #include <netinet/udp.h>
 #include <netinet/ip.h>
+#include <ctime>
+#include <unistd.h>
 
 // Set the following port to a unique number:
 #define MYPORT 5950
@@ -27,6 +31,27 @@ int create_cs3516_socket();
 int cs3516_recv(int , void *, int);
 int cs3516_send(int, void *, int, unsigned long);
 
+/**
+ * random alpha-numeric string generation
+ * @param len length of the string
+ * @return a random alpha-numeric string of len characters
+ */
+std::string random_string(const int len) {
+    srand(time(NULL));
+
+    static const char alphanum[] =
+            "0123456789"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz";
+    std::string tmp_s;
+    tmp_s.reserve(len);
+
+    for (int i = 0; i < len; ++i) {
+        tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    return tmp_s;
+}
 
 void router() {
     printf("router\n");
@@ -96,7 +121,6 @@ void router() {
 // };
 
 void endhost() {
-
     // end hosts should be able to send data across the network 
     // and receive data from the router it is directly connected to
     printf("host\n");
@@ -108,7 +132,13 @@ void endhost() {
     //form data of some kind to send
     int bufferSize = 64;
     char buffer[bufferSize];
-    strcpy(buffer, "test string");
+    int len = 20;
+    std::string random_string_std = random_string(len);
+    char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
+    //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
+    strcpy(buffer, rand_str);
+    //strcpy(buffer, "test string"); // old string generation
+
     // strcat(udpHeader, buffer);
     // strcat(ipHeader, udpHeader);
 
@@ -134,7 +164,7 @@ void endhost() {
 
     //send length of data first
     printf("Attempting to send() length...\n");
-    u_int32_t length = 12;
+    u_int32_t length = len;
     u_int32_t* lengthP = &length;
 
     if(cs3516_send(sockfd, lengthP, sizeof(u_int32_t), inp.s_addr) == -1) {
