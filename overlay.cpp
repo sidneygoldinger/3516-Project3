@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
 #include <string_view>
 
 #include <sys/types.h>
@@ -18,6 +19,7 @@
 #include <netinet/ip.h>
 #include <ctime>
 #include <unistd.h>
+using namespace std;
 
 // Set the following port to a unique number:
 #define MYPORT 5950
@@ -60,7 +62,9 @@ void router() {
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
 
-    //receive data length first somehow. Look at project 1?
+    // file things
+    ofstream of;
+    fstream f;
 
     //receive data
     int bufferSize = 1000;
@@ -81,24 +85,38 @@ void router() {
         // cs3516_recv(sockfd, buffer, bufferSize);
         memset(buffer, 0, bufferSize);
         cs3516_recv(sockfd, buffer, bufferSize);
-        struct ip* ip_header = ((struct ip*) buffer);
+        struct ip *ip_header = ((struct ip *) buffer);
         printf("%s\n", buffer);
         printf("%u\n", ip_header->ip_ttl);
         printf("%s\n", inet_ntoa(ip_header->ip_src));
         printf("%s\n", inet_ntoa(ip_header->ip_dst));
-        printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
-        if(strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
-            //send to real address of "4.5.6.1"
-            struct in_addr next;
-            inet_aton("10.63.36.3", &next);
-            printf("Attempting to forward\n");
-            cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-        } else {
-            //else send to the other option
-            printf("Attempting to forward to other dest\n");
-            struct in_addr next;
-            inet_aton("10.63.36.4", &next);
-            cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+        //printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
+        if (ip_header->ip_ttl > 0) {
+            if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
+                //send to real address of "4.5.6.1"
+                struct in_addr next;
+                inet_aton("10.63.36.3", &next);
+                printf("Attempting to forward\n");
+                cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+            }
+            else {
+                //else send to the other option
+                printf("Attempting to forward to other dest\n");
+                struct in_addr next;
+                inet_aton("10.63.36.4", &next);
+                cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+            }
+        }
+        else { // if it's zero, log
+            of.open("router_log.txt", ios::app);
+            if (!of) { cout << "No such file found"; }
+            else {
+                of << " String";
+                cout << "file dropped because ttl = 0. ";
+                cout << "log here\n";
+                of.close();
+
+            }
         }
     }
 
