@@ -67,6 +67,7 @@ void router() {
     memset(buffer, 0, bufferSize);
     //always try to recv()
     while(1) {
+        // recieving IP and UDP headers n shit
         printf("Attempting to recv() length...\n");
         memset(buffer, 0, bufferSize);
         cs3516_recv(sockfd, &length, bufferSize);
@@ -79,17 +80,19 @@ void router() {
         struct ip* ip_header = ((struct ip*) buffer);
         printf("%s\n", buffer);
         printf("%u\n", ip_header->ip_ttl);
+
+        // TODO below here in this infinite loop untested but builds
+        // decrementing TTL
+        ip_header->ip_ttl--;
+
+        // forward to hardcoded router
+        struct in_addr inp;
+        inet_aton(NEXT_HOP, &inp);
+        printf("Attempting to send() to next hop...\n");
+        cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
+        // TODO above here in this infinite loop untested but builds
     }
 
-    // //decrement ttl value
-    // struct ip* ip_header = ((struct ip*) buffer);
-    // ip_header->ip_ttl --;
-
-    // //send to next hop
-    // struct in_addr inp;
-    // inet_aton(NEXT_HOP, &inp);
-    // printf("Attempting to send() to next hop...\n");
-    // cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
 }
 
 // struct udphdr {
@@ -123,6 +126,13 @@ void router() {
 void endhost() {
     // end hosts should be able to send data across the network 
     // and receive data from the router it is directly connected to
+
+    // reading send_config
+
+
+    // reading send_body
+
+    // socket
     printf("host\n");
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
@@ -137,12 +147,12 @@ void endhost() {
     char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
     //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
     strcpy(buffer, rand_str);
-    //strcpy(buffer, "test string"); // old string generation
 
     // strcat(udpHeader, buffer);
     // strcat(ipHeader, udpHeader);
 
     //construct headers
+    // IP header
     int ipHeaderBufferSize = sizeof(struct ip);
     u_char ipHeaderBuffer[ipHeaderBufferSize];
     struct ip ip_hdr;
@@ -162,6 +172,15 @@ void endhost() {
     memcpy(concatBuffer + ipHeaderBufferSize, buffer, bufferSize);
     //printf("%s\n", ipHeaderBuffer);
 
+    // UDP header
+    int udpHeaderBufferSize = sizeof(struct udphdr);
+    u_char udpHeaderBuffer[udpHeaderBufferSize];
+    struct udphdr udp_hdr;
+             // udp_hdr.udp_ttl = 50; // TODO does this work?
+    struct udphdr* udp_header = &udp_hdr;
+
+
+    // sending IP things
     //send length of data first
     printf("Attempting to send() length...\n");
     u_int32_t length = len;
@@ -184,6 +203,8 @@ void endhost() {
         perror("error with sending the data");
         exit(1);
     }
+
+    // sending UDP things
 
 }
 
