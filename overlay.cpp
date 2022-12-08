@@ -23,6 +23,8 @@
 #define MYPORT 5950
 #define NEXT_HOP "10.63.36.2" //temporary constant for testing
 #define ROUTER "10.63.36.1"
+#define SOURCE "1.2.3.1"
+#define DEST "4.5.6.1"
 
 void router();
 void endhost();
@@ -73,23 +75,30 @@ void router() {
         cs3516_recv(sockfd, &length, bufferSize);
         printf("%d\n", length);
         printf("Attempting to recv() data...\n");
-        cs3516_recv(sockfd, buffer, bufferSize);
-        printf("%s\n", buffer);
+        // cs3516_recv(sockfd, buffer, bufferSize);
+        // printf("%s\n", buffer);
+        // memset(buffer, 0, bufferSize);
+        // cs3516_recv(sockfd, buffer, bufferSize);
         memset(buffer, 0, bufferSize);
         cs3516_recv(sockfd, buffer, bufferSize);
-        struct ip *ip_header = ((struct ip *) buffer);
+        struct ip* ip_header = ((struct ip*) buffer);
         printf("%s\n", buffer);
         printf("%u\n", ip_header->ip_ttl);
-
-        if (ip_header->ip_ttl) { // if it's zero don't do that one
-            // decrementing TTL
-            ip_header->ip_ttl--;
-
-            // forward to hardcoded router
-            struct in_addr inp;
-            inet_aton(NEXT_HOP, &inp);
-            printf("Attempting to send() to next hop...\n");
-            cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
+        printf("%s\n", inet_ntoa(ip_header->ip_src));
+        printf("%s\n", inet_ntoa(ip_header->ip_dst));
+        printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
+        if(strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
+            //send to real address of "4.5.6.1"
+            struct in_addr next;
+            inet_aton("10.63.36.3", &next);
+            printf("Attempting to forward\n");
+            cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+        } else {
+            //else send to the other option
+            printf("Attempting to forward to other dest\n");
+            struct in_addr next;
+            inet_aton("10.63.36.4", &next);
+            cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
         }
     }
 
@@ -150,7 +159,11 @@ void endhost() {
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
     struct in_addr inp;
+    struct in_addr sourceIP;
+    struct in_addr destIP;
     inet_aton(ROUTER, &inp);
+    inet_aton(SOURCE, &sourceIP);
+    inet_aton(DEST, &destIP);
 
     //form data of some kind to send
     int bufferSize = 64;
@@ -170,6 +183,8 @@ void endhost() {
     u_char ipHeaderBuffer[ipHeaderBufferSize];
     struct ip ip_hdr;
     ip_hdr.ip_ttl = 50;
+    ip_hdr.ip_src = sourceIP;
+    ip_hdr.ip_dst = destIP;
     struct ip* ip_header = &ip_hdr;
     printf("before\n");
     //ip_header->ip_ttl = 50; //test constant
@@ -178,22 +193,24 @@ void endhost() {
     //ip_header.ip_src = inet_aton();
     memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
     // //append headers to it somehow
-    u_char concatBuffer[bufferSize + ipHeaderBufferSize];
     printf("%s\n", buffer);
     //strcat(ipHeaderBuffer, buffer);
-    memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
-    memcpy(concatBuffer + ipHeaderBufferSize, buffer, bufferSize);
     //printf("%s\n", ipHeaderBuffer);
 
     // UDP header
     int udpHeaderBufferSize = sizeof(struct udphdr);
     u_char udpHeaderBuffer[udpHeaderBufferSize];
     struct udphdr udp_hdr;
-    udp_hdr.uh_sport = 5950;
-    udp_hdr.uh_dport = 5950;
+    udp_hdr.uh_sport = MYPORT;
+    udp_hdr.uh_dport = MYPORT;
     struct udphdr* udp_header = &udp_hdr;
 
+    int concatBufferSize = bufferSize + udpHeaderBufferSize + ipHeaderBufferSize;
+    u_char concatBuffer[concatBufferSize];
 
+    memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
+    memcpy(concatBuffer + ipHeaderBufferSize, udpHeaderBuffer, udpHeaderBufferSize);
+    memcpy(concatBuffer + ipHeaderBufferSize + udpHeaderBufferSize, buffer, bufferSize);
     // sending IP things
     //send length of data first
     printf("Attempting to send() length...\n");
@@ -208,13 +225,18 @@ void endhost() {
     //send data (with headers) over the network
     printf("Attempting to send() data...\n");
     //destination IP address
-    if(cs3516_send(sockfd, buffer, bufferSize, inp.s_addr) == -1) {
-        perror("error with sending the data");
-        exit(1);
-    }
+    // if(cs3516_send(sockfd, buffer, bufferSize, inp.s_addr) == -1) {
+    //     perror("error with sending the data");
+    //     exit(1);
+    // }
 
-    if(cs3516_send(sockfd, ipHeaderBuffer, ipHeaderBufferSize, inp.s_addr) == -1) {
-        perror("error with sending the data");
+    // if(cs3516_send(sockfd, ipHeaderBuffer, ipHeaderBufferSize, inp.s_addr) == -1) {
+    //     perror("error with sending the data");
+    //     exit(1);
+    // }
+
+    if(cs3516_send(sockfd, concatBuffer, concatBufferSize, inp.s_addr) == -1) {
+        perror("error with sending the concatenated data");
         exit(1);
     }
 
