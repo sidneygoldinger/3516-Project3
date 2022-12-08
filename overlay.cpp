@@ -77,20 +77,22 @@ void router() {
         printf("%s\n", buffer);
         memset(buffer, 0, bufferSize);
         cs3516_recv(sockfd, buffer, bufferSize);
-        struct ip* ip_header = ((struct ip*) buffer);
+        struct ip *ip_header = ((struct ip *) buffer);
         printf("%s\n", buffer);
         printf("%u\n", ip_header->ip_ttl);
 
-        // TODO below here in this infinite loop untested but builds
-        // decrementing TTL
-        ip_header->ip_ttl--;
+        if (ip_header->ip_ttl) { // if it's zero don't do that one
+            // TODO below here in this infinite loop untested but builds
+            // decrementing TTL
+            ip_header->ip_ttl--;
 
-        // forward to hardcoded router
-        struct in_addr inp;
-        inet_aton(NEXT_HOP, &inp);
-        printf("Attempting to send() to next hop...\n");
-        cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
-        // TODO above here in this infinite loop untested but builds
+            // forward to hardcoded router
+            struct in_addr inp;
+            inet_aton(NEXT_HOP, &inp);
+            printf("Attempting to send() to next hop...\n");
+            cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
+            // TODO above here in this infinite loop untested but builds
+        }
     }
 
 }
@@ -129,6 +131,19 @@ void endhost() {
 
     // reading send_config
 
+    /*
+    std::fstream file;
+    std::string word, t, q, filename;
+    filename = "file.txt";
+    file.open(filename.c_str());
+
+
+    int i = 0;
+    while (file >> word) {
+
+        i = i + 1;
+    }
+     */
 
     // reading send_body
 
