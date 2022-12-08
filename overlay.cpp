@@ -90,6 +90,7 @@ void router() {
         printf("%u\n", ip_header->ip_ttl);
         printf("%s\n", inet_ntoa(ip_header->ip_src));
         printf("%s\n", inet_ntoa(ip_header->ip_dst));
+        printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
         //printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
         if (ip_header->ip_ttl > 0) {
             if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
@@ -149,6 +150,7 @@ void router() {
 // };
 
 void endhost() {
+    fd_set read_fd;
     // end hosts should be able to send data across the network 
     // and receive data from the router it is directly connected to
 
@@ -180,83 +182,115 @@ void endhost() {
     inet_aton(ROUTER, &inp);
     inet_aton(SOURCE, &sourceIP);
     inet_aton(DEST, &destIP);
+    struct timeval timeout;
+    bool stillSending = true;
+    while(1) {
+        
+        timeout.tv_sec = 0;
+		timeout.tv_usec = 10000;
+        FD_ZERO(&read_fd);
+        FD_SET(sockfd, &read_fd);
+        int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
+        if(r == 0) {
+            if(stillSending) {
+                //timeout, send data
+                printf("timeout, send data\n");
+                int bufferSize = 64;
+                char buffer[bufferSize];
+                int len = 20;
+                std::string random_string_std = random_string(len);
+                char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
+                //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
+                strcpy(buffer, rand_str);
 
-    //form data of some kind to send
-    int bufferSize = 64;
-    char buffer[bufferSize];
-    int len = 20;
-    std::string random_string_std = random_string(len);
-    char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
-    //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
-    strcpy(buffer, rand_str);
+                // strcat(udpHeader, buffer);
+                // strcat(ipHeader, udpHeader);
 
-    // strcat(udpHeader, buffer);
-    // strcat(ipHeader, udpHeader);
+                //construct headers
+                // IP header
+                int ipHeaderBufferSize = sizeof(struct ip);
+                u_char ipHeaderBuffer[ipHeaderBufferSize];
+                struct ip ip_hdr;
+                ip_hdr.ip_ttl = 3;
+                ip_hdr.ip_src = sourceIP;
+                ip_hdr.ip_dst = destIP;
+                struct ip* ip_header = &ip_hdr;
+                printf("before\n");
+                //ip_header->ip_ttl = 50; //test constant
+                printf("after\n");
+                //inet_ntoa((struct in_addr)ip_header->ip_src
+                //ip_header.ip_src = inet_aton();
+                memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
+                // //append headers to it somehow
+                printf("%s\n", buffer);
+                //strcat(ipHeaderBuffer, buffer);
+                //printf("%s\n", ipHeaderBuffer);
 
-    //construct headers
-    // IP header
-    int ipHeaderBufferSize = sizeof(struct ip);
-    u_char ipHeaderBuffer[ipHeaderBufferSize];
-    struct ip ip_hdr;
-    ip_hdr.ip_ttl = 50;
-    ip_hdr.ip_src = sourceIP;
-    ip_hdr.ip_dst = destIP;
-    struct ip* ip_header = &ip_hdr;
-    printf("before\n");
-    //ip_header->ip_ttl = 50; //test constant
-    printf("after\n");
-    //inet_ntoa((struct in_addr)ip_header->ip_src
-    //ip_header.ip_src = inet_aton();
-    memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
-    // //append headers to it somehow
-    printf("%s\n", buffer);
-    //strcat(ipHeaderBuffer, buffer);
-    //printf("%s\n", ipHeaderBuffer);
+                // UDP header
+                int udpHeaderBufferSize = sizeof(struct udphdr);
+                u_char udpHeaderBuffer[udpHeaderBufferSize];
+                struct udphdr udp_hdr;
+                udp_hdr.uh_sport = MYPORT;
+                udp_hdr.uh_dport = MYPORT;
+                struct udphdr* udp_header = &udp_hdr;
 
-    // UDP header
-    int udpHeaderBufferSize = sizeof(struct udphdr);
-    u_char udpHeaderBuffer[udpHeaderBufferSize];
-    struct udphdr udp_hdr;
-    udp_hdr.uh_sport = MYPORT;
-    udp_hdr.uh_dport = MYPORT;
-    struct udphdr* udp_header = &udp_hdr;
+                int concatBufferSize = bufferSize + udpHeaderBufferSize + ipHeaderBufferSize;
+                u_char concatBuffer[concatBufferSize];
 
-    int concatBufferSize = bufferSize + udpHeaderBufferSize + ipHeaderBufferSize;
-    u_char concatBuffer[concatBufferSize];
+                memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
+                memcpy(concatBuffer + ipHeaderBufferSize, udpHeaderBuffer, udpHeaderBufferSize);
+                memcpy(concatBuffer + ipHeaderBufferSize + udpHeaderBufferSize, buffer, bufferSize);
+                // sending IP things
+                //send length of data first
+                printf("Attempting to send() length...\n");
+                u_int32_t length = len;
+                u_int32_t* lengthP = &length;
 
-    memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
-    memcpy(concatBuffer + ipHeaderBufferSize, udpHeaderBuffer, udpHeaderBufferSize);
-    memcpy(concatBuffer + ipHeaderBufferSize + udpHeaderBufferSize, buffer, bufferSize);
-    // sending IP things
-    //send length of data first
-    printf("Attempting to send() length...\n");
-    u_int32_t length = len;
-    u_int32_t* lengthP = &length;
+                if(cs3516_send(sockfd, lengthP, sizeof(u_int32_t), inp.s_addr) == -1) {
+                    perror("error with sending the length");
+                    exit(1);
+                }
 
-    if(cs3516_send(sockfd, lengthP, sizeof(u_int32_t), inp.s_addr) == -1) {
-        perror("error with sending the length");
-        exit(1);
+                //send data (with headers) over the network
+                printf("Attempting to send() data...\n");
+                //destination IP address
+                // if(cs3516_send(sockfd, buffer, bufferSize, inp.s_addr) == -1) {
+                //     perror("error with sending the data");
+                //     exit(1);
+                // }
+
+                // if(cs3516_send(sockfd, ipHeaderBuffer, ipHeaderBufferSize, inp.s_addr) == -1) {
+                //     perror("error with sending the data");
+                //     exit(1);
+                // }
+
+                if(cs3516_send(sockfd, concatBuffer, concatBufferSize, inp.s_addr) == -1) {
+                    perror("error with sending the concatenated data");
+                    exit(1);
+                }
+                stillSending = false;
+            }
+        } else if(r < 0) {
+            //error
+            printf("error with select()\n");
+        } else {
+            //printf("%d\n", r);
+            //receive data
+            int bufferSize = 1000;
+            u_char buffer[bufferSize];
+            u_int32_t length;
+            memset(buffer, 0, bufferSize);
+
+            cs3516_recv(sockfd, buffer, bufferSize);
+            //struct ip *ip_header = ((struct ip *) buffer);
+            // printf("%s\n", buffer);
+            // printf("%u\n", ip_header->ip_ttl);
+            // printf("%s\n", inet_ntoa(ip_header->ip_src));
+            // printf("%s\n", inet_ntoa(ip_header->ip_dst));
+            printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
+        }
+            
     }
-
-    //send data (with headers) over the network
-    printf("Attempting to send() data...\n");
-    //destination IP address
-    // if(cs3516_send(sockfd, buffer, bufferSize, inp.s_addr) == -1) {
-    //     perror("error with sending the data");
-    //     exit(1);
-    // }
-
-    // if(cs3516_send(sockfd, ipHeaderBuffer, ipHeaderBufferSize, inp.s_addr) == -1) {
-    //     perror("error with sending the data");
-    //     exit(1);
-    // }
-
-    if(cs3516_send(sockfd, concatBuffer, concatBufferSize, inp.s_addr) == -1) {
-        perror("error with sending the concatenated data");
-        exit(1);
-    }
-
-    // sending UDP things
 
 }
 
