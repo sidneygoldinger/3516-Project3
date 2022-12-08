@@ -189,7 +189,8 @@ void endhost() {
     int udpHeaderBufferSize = sizeof(struct udphdr);
     u_char udpHeaderBuffer[udpHeaderBufferSize];
     struct udphdr udp_hdr;
-             // udp_hdr.udp_ttl = 50; // TODO does this work?
+    udp_hdr.uh_sport = 5950;
+    udp_hdr.uh_dport = 5950;
     struct udphdr* udp_header = &udp_hdr;
 
 
