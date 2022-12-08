@@ -111,9 +111,7 @@ void router() {
             of.open("router_log.txt", ios::app);
             if (!of) { cout << "No such file found"; }
             else {
-                of << " String";
-                cout << "file dropped because ttl = 0. ";
-                cout << "log here\n";
+                of << " file dropped because ttl = 0. \n";
                 of.close();
 
             }
