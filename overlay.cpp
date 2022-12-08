@@ -82,7 +82,6 @@ void router() {
         printf("%u\n", ip_header->ip_ttl);
 
         if (ip_header->ip_ttl) { // if it's zero don't do that one
-            // TODO below here in this infinite loop untested but builds
             // decrementing TTL
             ip_header->ip_ttl--;
 
@@ -91,7 +90,6 @@ void router() {
             inet_aton(NEXT_HOP, &inp);
             printf("Attempting to send() to next hop...\n");
             cs3516_send(sockfd, buffer, bufferSize, inp.s_addr);
-            // TODO above here in this infinite loop untested but builds
         }
     }
 
