@@ -19,6 +19,9 @@
 #include <netinet/ip.h>
 #include <ctime>
 #include <unistd.h>
+#include <sys/time.h>
+#include <queue>
+#include <map>
 using namespace std;
 
 // Set the following port to a unique number:
@@ -27,6 +30,7 @@ using namespace std;
 #define ROUTER "10.63.36.1"
 #define SOURCE "1.2.3.1"
 #define DEST "4.5.6.1"
+#define ROUTER_IP "10.63.36.1"
 
 void router();
 void endhost();
@@ -34,6 +38,13 @@ int main(int, char**);
 int create_cs3516_socket();
 int cs3516_recv(int , void *, int);
 int cs3516_send(int, void *, int, unsigned long);
+
+struct packet {
+    int bufferSize;
+    struct timeval deadLine;
+    struct in_addr next_hop;
+    u_char* buffer;
+};
 
 /**
  * random alpha-numeric string generation
@@ -58,9 +69,31 @@ std::string random_string(const int len) {
 }
 
 void router() {
+    fd_set read_fd;
     printf("router\n");
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
+    std::queue<struct packet> queue;
+    std::map<std::string, std::string> map8;
+    std::map<std::string, std::string> map16;
+    std::map<std::string, std::string> map24;
+
+    FILE* configFile = fopen("config.txt", "r");
+    int routerID;
+    //find self
+        //loop through all lines
+        //if starts with 1
+            //check last spot and compare with this routers real IP
+            //if found, the number in the second spot is this routers ID
+    //find what devices this router is directly connected to
+        //check all lines that start with 3 or 4
+        //if second num == routerID
+            //if first num == 4
+                //map 4th spot to 5th num
+                //(prefix to host ID)
+            //if first num == 3
+                //map ovleray prefix of second num with second num
+    //
 
     // file things
     ofstream of;
@@ -71,52 +104,102 @@ void router() {
     u_char buffer[bufferSize];
     u_int32_t length;
     memset(buffer, 0, bufferSize);
+    struct timeval timeout;
     //always try to recv()
     while(1) {
-        // recieving IP and UDP headers n shit
-        printf("Attempting to recv() length...\n");
-        memset(buffer, 0, bufferSize);
-        cs3516_recv(sockfd, &length, bufferSize);
-        printf("%d\n", length);
-        printf("Attempting to recv() data...\n");
-        // cs3516_recv(sockfd, buffer, bufferSize);
-        // printf("%s\n", buffer);
-        // memset(buffer, 0, bufferSize);
-        // cs3516_recv(sockfd, buffer, bufferSize);
-        memset(buffer, 0, bufferSize);
-        cs3516_recv(sockfd, buffer, bufferSize);
-        struct ip *ip_header = ((struct ip *) buffer);
-        printf("%s\n", buffer);
-        printf("%u\n", ip_header->ip_ttl);
-        printf("%s\n", inet_ntoa(ip_header->ip_src));
-        printf("%s\n", inet_ntoa(ip_header->ip_dst));
-        printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
-        //printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
-        if (ip_header->ip_ttl > 0) {
-            if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
-                //send to real address of "4.5.6.1"
-                struct in_addr next;
-                inet_aton("10.63.36.3", &next);
-                printf("Attempting to forward\n");
-                cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+        //printf("in loop\n");
+        timeout.tv_sec = 0;
+		timeout.tv_usec = 10000;
+        FD_ZERO(&read_fd);
+        FD_SET(sockfd, &read_fd);
+        int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
+        if(r == 0) {
+            //printf("checking queue\n");
+            //timeout, check the queue
+            if(queue.size() > 0) {
+                //printf("before\n");
+                printf("%s\n", queue.front().buffer + sizeof(struct ip) + sizeof(struct udphdr));
+                //printf("after\n");
+                printf("%d\n", queue.front().bufferSize);
+                printf("%s\n", inet_ntoa(queue.front().next_hop));
             }
-            else {
-                //else send to the other option
-                printf("Attempting to forward to other dest\n");
-                struct in_addr next;
-                inet_aton("10.63.36.4", &next);
-                cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-            }
-        }
-        else { // if it's zero, log
-            of.open("router_log.txt", ios::app);
-            if (!of) { cout << "No such file found"; }
-            else {
-                of << " file dropped because ttl = 0. \n";
-                of.close();
+        } else if(r < 0) {
+            //error
+            printf("error\n");
+        } else {
+            printf("tyring to recv()\n");
+            //ready to recvfrom() something
+            struct packet queueEntry;
+            //https://stackoverflow.com/questions/19555121/how-to-get-current-timestamp-in-milliseconds-since-1970-just-the-way-java-gets
+            struct timeval currentTime;
+            gettimeofday(&currentTime, NULL);
+            long int ms = currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
 
+            printf("current time (ms): %ld\n", ms);
+            // recieving IP and UDP headers n shit
+            printf("Attempting to recv() length...\n");
+            memset(buffer, 0, bufferSize);
+            cs3516_recv(sockfd, &length, bufferSize);
+            printf("%d\n", length);
+            queueEntry.bufferSize = length;
+            printf("Attempting to recv() data...\n");
+            // cs3516_recv(sockfd, buffer, bufferSize);
+            // printf("%s\n", buffer);
+            // memset(buffer, 0, bufferSize);
+            // cs3516_recv(sockfd, buffer, bufferSize);
+            memset(buffer, 0, bufferSize);
+            cs3516_recv(sockfd, buffer, bufferSize);
+            struct ip *ip_header = ((struct ip *) buffer);
+            printf("%s\n", buffer);
+            printf("%u\n", ip_header->ip_ttl);
+            printf("%s\n", inet_ntoa(ip_header->ip_src));
+            printf("%s\n", inet_ntoa(ip_header->ip_dst));
+            //print data
+            printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
+            //printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
+            u_char* bufferCopy = (u_char*)malloc(bufferSize); 
+            memcpy(bufferCopy, buffer, bufferSize);
+            //printf("before\n");
+            queueEntry.buffer = (u_char*)malloc(bufferSize);
+            memcpy(queueEntry.buffer, bufferCopy, bufferSize);
+            //printf("after\n");
+            printf("%s\n", queueEntry.buffer + sizeof(struct ip) + sizeof(struct udphdr));
+            struct timeval delay;
+            //delay will differ based on where the packet is going
+            //just more info we need to parse from config file
+            delay.tv_sec = 1; 
+            timeradd(&delay, &currentTime, &queueEntry.deadLine);
+            
+            if (ip_header->ip_ttl > 0) {
+                if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
+                    //send to real address of "4.5.6.1"
+                    struct in_addr next;
+                    inet_aton("10.63.36.3", &next);
+                    printf("Enqueuing\n");
+                    queueEntry.next_hop = next;
+                    //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                }
+                else {
+                    //else send to the other option
+                    printf("Enqueuing for other dest\n");
+                    struct in_addr next;
+                    inet_aton("10.63.36.4", &next);
+                    queueEntry.next_hop = next;
+                    //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                }
+                queue.push(queueEntry);
+            }
+            else { // if it's zero, log
+                of.open("router_log.txt", ios::app);
+                if (!of) { cout << "No such file found"; }
+                else {
+                    of << " packet dropped because ttl = 0. \n";
+                    of.close();
+
+                }
             }
         }
+        
     }
 
 }
@@ -316,6 +399,14 @@ int create_cs3516_socket() {
 
     bzero(&server, sizeof(server));
     server.sin_family = AF_INET;
+    //ip address that we want this process to be associated with
+    //I think we can just have one machine run all of the routers
+    //and then just change this hard coded IP for each router
+    //in different directories
+    //ROUTER 1 - "10.63.36.1"
+    //ROUTER 2 - "10.63.36.12"
+    //ROUTER 3 - "10.63.36.13"
+    //server.sin_addr.s_addr = inet_addr(ROUTER_IP);
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(MYPORT);
     if (bind(sock, (struct sockaddr *) &server, sizeof(server) ) < 0) 
