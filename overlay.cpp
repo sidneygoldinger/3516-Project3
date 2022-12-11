@@ -2,6 +2,7 @@
 // Created by Sidney Goldinger on 11/30/22.
 //
 
+////// INCLUDE STATEMENTS ///////
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -33,6 +34,30 @@ using namespace std;
 #define DEST "4.5.6.1"
 #define ROUTER_IP "10.63.36.1"
 
+
+/////// CONFIG FILE GLOBALS: ROUTER ////////
+// line 0:
+int QUEUE_LENGTH = -1;
+
+// line 1:
+int ROUTER_ID = -1;
+
+// line 3: (router-router connections)
+
+// line 4: (router-host connections)
+
+
+////// CONFIG FILE GLOBALS: HOST ///////
+// line 2: (end-host setup)
+int HOST_ID = -1;
+string OVERLAY_IP = "default_overlay_ip";
+
+// line 4: (host-router connections)
+
+
+
+
+/////// FUNCTION DECLARATIONS ///////
 void router();
 std::string random_string(const int);
 void endhost();
