@@ -82,21 +82,32 @@ void read_config_router() {
                 }
 
                 // now switch case first number to determine what it means and do that
+                // note: last "word" in each line is empty (no characters)
                 switch (first_num) {
                     case 0:
                         cout << "Line 0. Queue length setting!\n";
+                        cout << "word: " << word << "\n";
+                        cout << "word_num: " << word_num << "\n";
                         break;
                     case 1:
                         cout << "Line 1. Setting up router id.\n";
+                        cout << "word: " << word << "\n";
+                        cout << "word_num: " << word_num << "\n";
                         break;
                     case 3:
                         cout << "Line 3. Setting up router connection.\n";
+                        cout << "word: " << word << "\n";
+                        cout << "word_num: " << word_num << "\n";
                         break;
                     case 4:
                         cout << "Line 4. Setting up router-host connection.\n";
+                        cout << "word: " << word << "\n";
+                        cout << "word_num: " << word_num << "\n";
                         break;
                     default:
                         cout << "Not a relevant line. line = " << first_num << "\n";
+                        cout << "word: " << word << "\n";
+                        cout << "word_num: " << word_num << "\n";
 
                 }
 
@@ -496,12 +507,12 @@ void endhost() {
 }
 
 int main (int argc, char **argv) {
-    /*
+
     // TODO TESTING REMOVE THIS AFTER
     read_config_router();
     return 0;
     // TODO END TESTING
-     */
+
 
     // test if end-host or router
     std::string arg1 = argv[1];
