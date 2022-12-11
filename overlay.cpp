@@ -533,10 +533,12 @@ void endhost() {
 
 int main (int argc, char **argv) {
 
+    /*
     // TODO TESTING REMOVE THIS AFTER
     read_config_router();
     return 0;
     // TODO END TESTING
+     */
 
 
     // test if end-host or router
