@@ -108,6 +108,9 @@ void router() {
     //always try to recv()
     while(1) {
         //printf("in loop\n");
+        struct timeval currentTime;
+        gettimeofday(&currentTime, NULL);
+        long int ms = currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
         timeout.tv_sec = 0;
 		timeout.tv_usec = 10000;
         FD_ZERO(&read_fd);
@@ -122,6 +125,11 @@ void router() {
                 //printf("after\n");
                 printf("%d\n", queue.front().bufferSize);
                 printf("%s\n", inet_ntoa(queue.front().next_hop));
+                if(timercmp(&currentTime, &queue.front().deadLine, >=)){
+                    printf("Forwarding!\n");
+                    cs3516_send(sockfd, queue.front().buffer, queue.front().bufferSize, queue.front().next_hop.s_addr);
+                    queue.pop();
+                }
             }
         } else if(r < 0) {
             //error
@@ -131,9 +139,6 @@ void router() {
             //ready to recvfrom() something
             struct packet queueEntry;
             //https://stackoverflow.com/questions/19555121/how-to-get-current-timestamp-in-milliseconds-since-1970-just-the-way-java-gets
-            struct timeval currentTime;
-            gettimeofday(&currentTime, NULL);
-            long int ms = currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
 
             printf("current time (ms): %ld\n", ms);
             // recieving IP and UDP headers n shit
@@ -326,7 +331,7 @@ void endhost() {
                 // sending IP things
                 //send length of data first
                 printf("Attempting to send() length...\n");
-                u_int32_t length = len;
+                u_int32_t length = len + sizeof(struct ip) + sizeof(struct udphdr);  //length of all data in the buffer (data plus headers)
                 u_int32_t* lengthP = &length;
 
                 if(cs3516_send(sockfd, lengthP, sizeof(u_int32_t), inp.s_addr) == -1) {
