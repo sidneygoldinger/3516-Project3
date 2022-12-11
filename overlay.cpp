@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string_view>
 
 #include <sys/types.h>
@@ -33,11 +34,14 @@ using namespace std;
 #define ROUTER_IP "10.63.36.1"
 
 void router();
+std::string random_string(const int);
 void endhost();
 int main(int, char**);
 int create_cs3516_socket();
 int cs3516_recv(int , void *, int);
 int cs3516_send(int, void *, int, unsigned long);
+void read_config_router();
+void read_config_host();
 
 struct packet {
     int bufferSize;
@@ -45,6 +49,87 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+void read_config_router() {
+    // open file
+    fstream configFile;
+    configFile.open("send_config.txt",ios::in);
+    if(configFile.is_open()) {
+        string line;
+
+        // go through lines
+        while(getline(configFile, line)) {
+            istringstream iss(line);
+            bool is_first_num = true;
+            int first_num = -1;
+            int word_num = 0;
+
+            // go through words in the line
+            do {
+                // get the word in the line
+                string word;
+                iss >> word;
+
+                if (is_first_num) { // get first number
+                    cout << "is first num: yes! num = " << word << "\n";
+                    first_num = stoi(word);
+                    //cout << "does " << word << " equal " << first_num << "?\n";
+                    is_first_num = false;
+                }
+                else { // if not first, figure out which
+                    word_num = word_num + 1;
+                    //cout << "not first; word_num = " << word_num << "\n";
+                }
+
+                // now switch case first number to determine what it means and do that
+                switch (first_num) {
+                    case 0:
+                        cout << "Line 0. Queue length setting!\n";
+                        break;
+                    case 1:
+                        cout << "Line 1. Setting up router id.\n";
+                        break;
+                    case 3:
+                        cout << "Line 3. Setting up router connection.\n";
+                        break;
+                    case 4:
+                        cout << "Line 4. Setting up router-host connection.\n";
+                        break;
+                    default:
+                        cout << "Not a relevant line. line = " << first_num << "\n";
+
+                }
+
+                // check line '0': get queue len
+
+                // check lines '1': figure out which router num
+
+                // check lines '3': create router connections
+
+                // check lines '4': create router-host conns
+            } while (iss);
+
+        }
+    }
+}
+
+void read_config_host() {
+    // open file
+    fstream configFile;
+    configFile.open("send_config.txt",ios::in);
+    if(configFile.is_open()) {
+        string line;
+        while(getline(configFile, line)) {
+            cout << line << "\n";
+
+            // check lines '2': figure out which endhost num
+
+            // check lines '4': create host-router conns
+
+        }
+    }
+
+}
 
 /**
  * random alpha-numeric string generation
@@ -411,6 +496,13 @@ void endhost() {
 }
 
 int main (int argc, char **argv) {
+    /*
+    // TODO TESTING REMOVE THIS AFTER
+    read_config_router();
+    return 0;
+    // TODO END TESTING
+     */
+
     // test if end-host or router
     std::string arg1 = argv[1];
 
@@ -420,7 +512,6 @@ int main (int argc, char **argv) {
 
     return 0;
 }
-
 
 int create_cs3516_socket() {
     int sock;
