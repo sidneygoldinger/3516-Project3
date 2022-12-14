@@ -109,6 +109,7 @@ int is_router(string);
 string gimme_the_ip(int);
 
 struct packet {
+    u_int32_t lengthOfFile;
     int bufferSize;
     struct timeval deadLine;
     struct in_addr next_hop;
@@ -599,6 +600,7 @@ void router() {
     printf("router\n");
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
+    int maxQueueSize = 3; //read from config file
     std::queue<struct packet> queue;
     std::map<std::string, std::string> map8;
     std::map<std::string, std::string> map16;
@@ -607,18 +609,18 @@ void router() {
     FILE* configFile = fopen("config.txt", "r");
     int routerID;
     //find self
-    //loop through all lines
-    //if starts with 1
-    //check last spot and compare with this routers real IP
-    //if found, the number in the second spot is this routers ID
+        //loop through all lines
+        //if starts with 1
+            //check last spot and compare with this routers real IP
+            //if found, the number in the second spot is this routers ID
     //find what devices this router is directly connected to
-    //check all lines that start with 3 or 4
-    //if second num == routerID
-    //if first num == 4
-    //map 4th spot to 5th num
-    //(prefix to host ID)
-    //if first num == 3
-    //map ovleray prefix of second num with second num
+        //check all lines that start with 3 or 4
+        //if second num == routerID
+            //if first num == 4
+                //map 4th spot to 5th num
+                //(prefix to host ID)
+            //if first num == 3
+                //map ovleray prefix of second num with second num
     //
 
     // file things
@@ -626,7 +628,7 @@ void router() {
     fstream f;
 
     //receive data
-    int bufferSize = 1000;
+    int bufferSize = 1000 + sizeof(struct ip) + sizeof(struct udphdr);
     u_char buffer[bufferSize];
     u_int32_t length;
     memset(buffer, 0, bufferSize);
@@ -638,21 +640,31 @@ void router() {
         gettimeofday(&currentTime, NULL);
         long int ms = currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+		timeout.tv_usec = 10000;
         FD_ZERO(&read_fd);
         FD_SET(sockfd, &read_fd);
         int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
         if(r == 0) {
-            //printf("checking queue\n");
             //timeout, check the queue
             if(queue.size() > 0) {
-                //printf("before\n");
-                printf("%s\n", queue.front().buffer + sizeof(struct ip) + sizeof(struct udphdr));
-                //printf("after\n");
-                printf("%d\n", queue.front().bufferSize);
-                printf("%s\n", inet_ntoa(queue.front().next_hop));
+                //printf("%s\n", queue.front().buffer + sizeof(struct ip) + sizeof(struct udphdr));
+                //printf("%d\n", queue.front().bufferSize);
+                //printf("%s\n", inet_ntoa(queue.front().next_hop));
                 if(timercmp(&currentTime, &queue.front().deadLine, >=)){
                     printf("Forwarding!\n");
+                    of.open("router_log.txt", ios::app);
+                    if (!of) { cout << "No such file found"; }
+                    else {
+                        of << " Packet succcessfully forwarded. \n";
+                        of.close();
+
+                    }
+
+                    //also send length of file here
+                    if(cs3516_send(sockfd, &queue.front().lengthOfFile, sizeof(u_int32_t), queue.front().next_hop.s_addr) == -1) {
+                        perror("error with sending the length");
+                        exit(1);
+                    }
                     cs3516_send(sockfd, queue.front().buffer, queue.front().bufferSize, queue.front().next_hop.s_addr);
                     queue.pop();
                 }
@@ -661,76 +673,88 @@ void router() {
             //error
             printf("error\n");
         } else {
-            printf("tyring to recv()\n");
-            //ready to recvfrom() something
-            struct packet queueEntry;
-            //https://stackoverflow.com/questions/19555121/how-to-get-current-timestamp-in-milliseconds-since-1970-just-the-way-java-gets
+            if(queue.size() < maxQueueSize) {
+                //printf("tyring to recv()\n");
+                //ready to recvfrom() something
+                //recv length, data, put into a packet struct, push to queue
+                struct packet queueEntry;
+                //https://stackoverflow.com/questions/19555121/how-to-get-current-timestamp-in-milliseconds-since-1970-just-the-way-java-gets
 
-            printf("current time (ms): %ld\n", ms);
-            // recieving IP and UDP headers n shit
-            printf("Attempting to recv() length...\n");
-            memset(buffer, 0, bufferSize);
-            cs3516_recv(sockfd, &length, bufferSize);
-            printf("%d\n", length);
-            queueEntry.bufferSize = length;
-            printf("Attempting to recv() data...\n");
-            // cs3516_recv(sockfd, buffer, bufferSize);
-            // printf("%s\n", buffer);
-            // memset(buffer, 0, bufferSize);
-            // cs3516_recv(sockfd, buffer, bufferSize);
-            memset(buffer, 0, bufferSize);
-            cs3516_recv(sockfd, buffer, bufferSize);
-            struct ip *ip_header = ((struct ip *) buffer);
-            printf("%s\n", buffer);
-            printf("%u\n", ip_header->ip_ttl);
-            printf("%s\n", inet_ntoa(ip_header->ip_src));
-            printf("%s\n", inet_ntoa(ip_header->ip_dst));
-            //print data
-            printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
-            //printf("%s\n", buffer+sizeof(struct udphdr)+sizeof(struct iphdr));
-            u_char* bufferCopy = (u_char*)malloc(bufferSize);
-            memcpy(bufferCopy, buffer, bufferSize);
-            //printf("before\n");
-            queueEntry.buffer = (u_char*)malloc(bufferSize);
-            memcpy(queueEntry.buffer, bufferCopy, bufferSize);
-            //printf("after\n");
-            printf("%s\n", queueEntry.buffer + sizeof(struct ip) + sizeof(struct udphdr));
-            struct timeval delay;
-            //delay will differ based on where the packet is going
-            //just more info we need to parse from config file
-            delay.tv_sec = 1;
-            timeradd(&delay, &currentTime, &queueEntry.deadLine);
+                //printf("current time (ms): %ld\n", ms);
+                // recieving IP and UDP headers n shit
+                //printf("Attempting to recv() length...\n");
+                memset(buffer, 0, bufferSize);
 
-            if (ip_header->ip_ttl > 0) {
-                if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
-                    //send to real address of "4.5.6.1"
-                    struct in_addr next;
-                    inet_aton("10.63.36.3", &next);
-                    printf("Enqueuing\n");
-                    queueEntry.next_hop = next;
-                    //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                //length will be the total size of the file being sent (in multiple packets most likely)
+                cs3516_recv(sockfd, &length, sizeof(u_int32_t));
+                //printf("%d\n", length);
+                queueEntry.lengthOfFile = length;
+                //allocate enough for the maximum payload of 1000 bytes plus the size of the headers
+                queueEntry.bufferSize = 1000 + sizeof(struct ip) + sizeof(struct udphdr);
+
+                //printf("Attempting to recv() data...\n");
+                memset(buffer, 0, bufferSize);
+                cs3516_recv(sockfd, buffer, bufferSize);
+                struct ip *ip_header = ((struct ip *) buffer);
+                //printf("%s\n", buffer);
+                //printf("%u\n", ip_header->ip_ttl);
+                //printf("%s\n", inet_ntoa(ip_header->ip_src));
+                //printf("%s\n", inet_ntoa(ip_header->ip_dst));
+
+                //print data (won't always make sense to print it this way)
+                //printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
+                u_char* bufferCopy = (u_char*)malloc(bufferSize); 
+                memcpy(bufferCopy, buffer, bufferSize);
+                queueEntry.buffer = (u_char*)malloc(bufferSize);
+                memcpy(queueEntry.buffer, bufferCopy, bufferSize);
+                //printf("%s\n", queueEntry.buffer + sizeof(struct ip) + sizeof(struct udphdr));
+                struct timeval delay;
+                //delay will differ based on where the packet is going
+                //just more info we need to parse from config file
+                delay.tv_sec = 1; 
+                timeradd(&delay, &currentTime, &queueEntry.deadLine);
+                
+                if (ip_header->ip_ttl > 0) {
+                    if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
+                        //send to real address of "4.5.6.1"
+                        struct in_addr next;
+                        inet_aton("10.63.36.3", &next);
+                        printf("Enqueuing\n");
+                        struct ip* ipHeader = (struct ip*)queueEntry.buffer;
+                        std::cout << next_step(ROUTER_IP, inet_ntoa(ipHeader->ip_dst)) << "\n";
+                        queueEntry.next_hop = next;
+                        //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                    }
+                    else {
+                        //else send to the other option
+                        printf("Enqueuing for other dest\n");
+                        struct in_addr next;
+                        inet_aton("10.63.36.4", &next);
+                        queueEntry.next_hop = next;
+                        //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                    }
+                    queue.push(queueEntry);
                 }
-                else {
-                    //else send to the other option
-                    printf("Enqueuing for other dest\n");
-                    struct in_addr next;
-                    inet_aton("10.63.36.4", &next);
-                    queueEntry.next_hop = next;
-                    //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                else { // if it's zero, log
+                    of.open("router_log.txt", ios::app);
+                    if (!of) { cout << "No such file found"; }
+                    else {
+                        of << " Packet dropped because ttl = 0. \n";
+                        of.close();
+
+                    }
                 }
-                queue.push(queueEntry);
-            }
-            else { // if it's zero, log
+            } else {
                 of.open("router_log.txt", ios::app);
-                if (!of) { cout << "No such file found"; }
-                else {
-                    of << " packet dropped because ttl = 0. \n";
-                    of.close();
+                    if (!of) { cout << "No such file found"; }
+                    else {
+                        of << " Packet dropped because queue was full. \n";
+                        of.close();
 
-                }
+                    }
             }
         }
-
+        
     }
 
 }
@@ -765,7 +789,7 @@ void router() {
 
 void endhost() {
     fd_set read_fd;
-    // end hosts should be able to send data across the network
+    // end hosts should be able to send data across the network 
     // and receive data from the router it is directly connected to
 
     // reading send_config
@@ -775,11 +799,8 @@ void endhost() {
     std::string word, t, q, filename;
     filename = "file.txt";
     file.open(filename.c_str());
-
-
     int i = 0;
     while (file >> word) {
-
         i = i + 1;
     }
      */
@@ -799,88 +820,111 @@ void endhost() {
     inet_aton(DEST, &destIP);
     struct timeval timeout;
     bool stillSending = true;
-    //queue all packets before sending?
-    //if something to recv
-    //recv and write it to a file
-    //else
-    //send the first packet in the queue and check again to see if there is something to recv
 
-    struct packet queueEntry;
-    queueEntry.next_hop = inp;
-    struct timeval currentTime;
-    gettimeofday(&currentTime, NULL);
+    //just a bunch of digits of pi for now
+    FILE* body = fopen("send_body.txt", "r");
+    FILE* received = fopen("received", "w");
+    //FILE* test = fopen("bytesRead", "w");
 
-    struct timeval delay;
-    //delay will differ based on where the packet is going
-    //just more info we need to parse from config file
-    delay.tv_sec = 1;
-    timeradd(&delay, &currentTime, &queueEntry.deadLine);
-
-    //timeout, send data
-    printf("timeout, send data\n");
-    int bufferSize = 64;
-    char buffer[bufferSize];
-    int len = 20;
-    std::string random_string_std = random_string(len);
-    char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
-    //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
-    strcpy(buffer, rand_str);
-
-    // strcat(udpHeader, buffer);
-    // strcat(ipHeader, udpHeader);
-
-    //construct headers
-    // IP header
-    int ipHeaderBufferSize = sizeof(struct ip);
-    u_char ipHeaderBuffer[ipHeaderBufferSize];
-    struct ip ip_hdr;
-    ip_hdr.ip_ttl = 3;
-    ip_hdr.ip_src = sourceIP;
-    ip_hdr.ip_dst = destIP;
-    struct ip* ip_header = &ip_hdr;
-    //printf("before\n");
-    //ip_header->ip_ttl = 50; //test constant
-    //printf("after\n");
-    //inet_ntoa((struct in_addr)ip_header->ip_src
-    //ip_header.ip_src = inet_aton();
-    memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
-    // //append headers to it somehow
-    printf("%s\n", buffer);
-    //strcat(ipHeaderBuffer, buffer);
-    //printf("%s\n", ipHeaderBuffer);
-
-    // UDP header
-    int udpHeaderBufferSize = sizeof(struct udphdr);
-    u_char udpHeaderBuffer[udpHeaderBufferSize];
-    struct udphdr udp_hdr;
-    udp_hdr.uh_sport = MYPORT;
-    udp_hdr.uh_dport = MYPORT;
-    struct udphdr* udp_header = &udp_hdr;
-
-    int concatBufferSize = bufferSize + udpHeaderBufferSize + ipHeaderBufferSize;
-    u_char concatBuffer[concatBufferSize];
-
-    memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
-    memcpy(concatBuffer + ipHeaderBufferSize, udpHeaderBuffer, udpHeaderBufferSize);
-    memcpy(concatBuffer + ipHeaderBufferSize + udpHeaderBufferSize, buffer, bufferSize);
-    // sending IP things
-    //send length of data first
-    u_int32_t length = len + sizeof(struct ip) + sizeof(struct udphdr);  //length of all data in the buffer (data plus headers)
+    //find the size of the file we are going to send
+    fseek(body, 0, SEEK_END);
+    u_int32_t length = ftell(body);
+    printf("length: %d\n", length);
     u_int32_t* lengthP = &length;
+    rewind(body);
 
-    u_char* bufferCopy = (u_char*)malloc(bufferSize);
-    memcpy(bufferCopy, concatBuffer, concatBufferSize);
-    //printf("before\n");
-    queueEntry.buffer = (u_char*)malloc(bufferSize);
-    //add buffer to packet
-    memcpy(queueEntry.buffer, bufferCopy, concatBufferSize);
-    //add length to packet
-    queueEntry.bufferSize = concatBufferSize;
-    queue.push(queueEntry);
+    
+    int numPacketsToSend = (length/1000) + 1;
+    int numPacketsToReceive = 0;
+    int highestPacketReceived = 0;
+    bool* packetHasArrived;
+    struct timeval currentTime;
+
+
+    printf("num packets: %d\n", numPacketsToSend);
+    for(int i = 0; i < numPacketsToSend; i ++) {
+        struct packet queueEntry;
+        queueEntry.next_hop = inp;
+        if(queue.size() == 0) {
+            gettimeofday(&currentTime, NULL);
+        } else {
+            currentTime = queue.back().deadLine;
+        }
+
+        struct timeval delay;
+        //delay will differ based on where the packet is going
+        //just more info we need to parse from config file
+        delay.tv_sec = 1; 
+        timeradd(&delay, &currentTime, &queueEntry.deadLine);
+
+        int bufferSize = 1000; //send 1000 bytes of the file at a time
+        char buffer[bufferSize];
+
+        //clear buffer just in case I guess
+        memset(buffer, 0, bufferSize);
+
+        //random string stuff I don't think we need anymore
+        // int len = 20;
+        // std::string random_string_std = random_string(len);
+        // char* rand_str = const_cast<char*>(random_string_std.c_str()); // converting std::string to char *
+        // //std::cout << rand_str << "\n"; // testing the random string generator (it works tho)
+        // strcpy(buffer, rand_str);
+
+        //read 1000 bytes into the buffer at a time from the file body
+        long int bytesRead = fread(buffer, 1, 1000, body);
+        printf("byetes read: %ld\n", bytesRead);
+
+        //construct headers
+        // IP header
+        int ipHeaderBufferSize = sizeof(struct ip);
+        u_char ipHeaderBuffer[ipHeaderBufferSize];
+        struct ip ip_hdr;
+        ip_hdr.ip_ttl = 3;               //from config
+        // if(i == 3) {
+        //     ip_hdr.ip_ttl = 0;           //intentionally drop the fourth packet for testing
+        // }
+        ip_hdr.ip_src = sourceIP;
+        ip_hdr.ip_dst = destIP;          //from send_config
+        ip_hdr.ip_id = i;               //increase for each consequtive packet
+        struct ip* ip_header = &ip_hdr;
+        //copy header struct into the buffer
+        memcpy(ipHeaderBuffer, ip_header, sizeof(struct ip));
+
+        // UDP header
+        int udpHeaderBufferSize = sizeof(struct udphdr);
+        u_char udpHeaderBuffer[udpHeaderBufferSize];
+        struct udphdr udp_hdr;
+        udp_hdr.uh_sport = MYPORT;                       //from send_config
+        udp_hdr.uh_dport = MYPORT;                       //from send_config
+        struct udphdr* udp_header = &udp_hdr;
+
+        int concatBufferSize = bufferSize + udpHeaderBufferSize + ipHeaderBufferSize;
+        u_char concatBuffer[concatBufferSize];
+
+        //copy ipHeader data into the first portion of the concat buffer
+        memcpy(concatBuffer, ipHeaderBuffer, ipHeaderBufferSize);
+        //then copy udpHeader data into the memory right after the ipHeader data
+        memcpy(concatBuffer + ipHeaderBufferSize, udpHeaderBuffer, udpHeaderBufferSize);
+        //finally copy the actual file data to the end of the buffer
+        memcpy(concatBuffer + ipHeaderBufferSize + udpHeaderBufferSize, buffer, bufferSize);
+        // sending IP things
+        //send length of data first
+
+        u_char* bufferCopy = (u_char*)malloc(concatBufferSize); 
+        memcpy(bufferCopy, concatBuffer, concatBufferSize);
+        //printf("before\n");
+        queueEntry.buffer = (u_char*)malloc(concatBufferSize);
+        //add buffer to packet
+        memcpy(queueEntry.buffer, bufferCopy, concatBufferSize);
+        //add length to packet
+        queueEntry.bufferSize = bytesRead + sizeof(struct ip) + sizeof(struct udphdr);  //used to be  " = concatBufferSize"
+        queue.push(queueEntry);
+    }
+
     while(1) {
         gettimeofday(&currentTime, NULL);
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+		timeout.tv_usec = 10000;
         FD_ZERO(&read_fd);
         FD_SET(sockfd, &read_fd);
         int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
@@ -891,13 +935,13 @@ void endhost() {
                     //if it's time to send the first packet, send it's length and then it's actual data
                     if(timercmp(&currentTime, &queue.front().deadLine, >=)){
                         printf("Attempting to send() length...\n");
-                        if(cs3516_send(sockfd, &queue.front().bufferSize, sizeof(u_int32_t), queue.front().next_hop.s_addr) == -1) {
+                        if(cs3516_send(sockfd, &length, sizeof(u_int32_t), queue.front().next_hop.s_addr) == -1) {
                             perror("error with sending the length");
                             exit(1);
                         }
 
                         //send data (with headers) over the network then pop the packet off the queue to move to the next
-                        //if the queue is empty, we are done sending
+                        //if the queue is empty, we are done sending 
                         printf("Attempting to send() data...\n");
 
                         if(cs3516_send(sockfd, queue.front().buffer, queue.front().bufferSize, queue.front().next_hop.s_addr) == -1) {
@@ -907,7 +951,7 @@ void endhost() {
                         queue.pop();
                     }
                 } else {
-                    stillSending = false;
+                    stillSending = false;   
                 }
             }
         } else if(r < 0) {
@@ -916,22 +960,49 @@ void endhost() {
         } else {
             //printf("%d\n", r);
             //receive data
-            int bufferSize = 1000;
+            int bufferSize = 1000 + sizeof(struct ip) + sizeof(struct udphdr);
             u_char buffer[bufferSize];
             u_int32_t length;
             memset(buffer, 0, bufferSize);
 
+            //also recv length of whole file here
+            //memset(buffer, 0, bufferSize);
+
+            //length will be the total size of the file being sent (in multiple packets most likely)
+            cs3516_recv(sockfd, &length, sizeof(u_int32_t));
             cs3516_recv(sockfd, buffer, bufferSize);
-            //struct ip *ip_header = ((struct ip *) buffer);
+            
+            struct ip *ip_header = ((struct ip *) buffer);
+            if(ip_header->ip_id == 0) {
+                numPacketsToReceive = (length/1000) + 1;
+                highestPacketReceived = 0;
+                packetHasArrived = (bool *)malloc(sizeof(bool) * numPacketsToReceive);
+                packetHasArrived[0] = true;
+                //resest file/make new file?
+            } else {
+                highestPacketReceived = ip_header->ip_id;
+                packetHasArrived[highestPacketReceived] = true;
+                printf("packet num: %d\n", highestPacketReceived);
+            }
+
             // printf("%s\n", buffer);
             // printf("%u\n", ip_header->ip_ttl);
             // printf("%s\n", inet_ntoa(ip_header->ip_src));
             // printf("%s\n", inet_ntoa(ip_header->ip_dst));
 
-            printf("recieved the following\n");
-            printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
+            //printf("recieved the following\n");
+            fwrite(buffer + sizeof(struct ip) + sizeof(struct udphdr), 1, 1000, received);
+            printf("recieved a file size of: %d\n", length);
+            if(highestPacketReceived == numPacketsToReceive-1) {
+                fclose(received);
+                for(int i = 0; i < numPacketsToReceive; i ++) {
+                    if(!packetHasArrived[i]) {
+                        printf("Packet with ident #: %d lost!\n", i);
+                    }
+                }
+            }
         }
-
+            
     }
 
 }
@@ -952,7 +1023,7 @@ int main (int argc, char **argv) {
 
     //test_config_all();
 
-    return 0;
+    //return 0;
 
     // TODO END TESTING
 
