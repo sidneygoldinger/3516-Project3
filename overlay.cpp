@@ -107,6 +107,7 @@ string next_step(string, string);
 int gimme_the_id(string);
 int is_router(string);
 string gimme_the_ip(int);
+string gimme_real_ip(string);
 
 struct packet {
     int bufferSize;
@@ -114,6 +115,16 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+/**
+ * Takes a fake host ip, gives real ip of the host; UNTESTED
+ * @param fake_ip fake host ip, string
+ * @return real ip string of that host
+ */
+string gimme_real_ip(string fake_ip) {
+    int id = gimme_the_id(fake_ip);
+    return HOST_IPS[id-3];
+}
 
 /**
  * gives the ip of the next step the packet should go to towards the host; IT WORKS
