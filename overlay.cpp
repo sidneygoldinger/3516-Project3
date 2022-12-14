@@ -124,7 +124,8 @@ struct packet {
  */
 string gimme_real_ip(string fake_ip) {
     int id = gimme_the_id(fake_ip);
-    return HOST_IPS[id-3];
+    printf("%d\n", id);
+    return HOST_IPS[id+3];
 }
 
 /**
@@ -732,7 +733,10 @@ void router() {
                         inet_aton("10.63.36.3", &next);
                         printf("Enqueuing\n");
                         struct ip* ipHeader = (struct ip*)queueEntry.buffer;
-                        std::cout << next_step(ROUTER_IP, inet_ntoa(ipHeader->ip_dst)) << "\n";
+                        std::string str(inet_ntoa(ipHeader->ip_dst));
+                        std::cout << str << "\n";
+                        std::cout << gimme_real_ip(str) << "\n";
+                        std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
                         queueEntry.next_hop = next;
                         //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
                     }
