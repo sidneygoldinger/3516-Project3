@@ -122,8 +122,13 @@ struct packet {
  * @return real ip string of that host
  */
 string gimme_real_ip(string fake_ip) {
-    int id = gimme_the_id(fake_ip);
-    return HOST_IPS[id-3];
+    // fake ip
+    int id = -1;
+    for (int b = 0; b < 3; b++) {
+        if (fake_ip == HOST_IPS[b]) { id = b; }
+    }
+    //cout << id << "\n";
+    return HOST_IPS[id+3];
 }
 
 /**
@@ -962,8 +967,9 @@ int main (int argc, char **argv) {
     read_config_all();
 
     //test_config_all();
+    //cout << gimme_real_ip("7.8.9.1") << "\n";
 
-    return 0;
+    //return 0;
 
     // TODO END TESTING
 
