@@ -29,10 +29,10 @@ using namespace std;
 // Set the following port to a unique number:
 #define MYPORT 5950
 #define NEXT_HOP "10.63.36.2" //temporary constant for testing
-#define ROUTER "10.63.36.1"
+#define ROUTER "10.63.36.12"  //for host to send to 
 #define SOURCE "1.2.3.1"
 #define DEST "4.5.6.1"
-#define ROUTER_IP "10.63.36.1"
+#define ROUTER_IP "10.63.36.13"  //for routers to bind to
 
 ////// CONFIG FILE GLOBALS: BOTH ////////
 // line 1/2: (helps determine router/host id)
@@ -712,6 +712,7 @@ void router() {
                 memset(buffer, 0, bufferSize);
                 cs3516_recv(sockfd, buffer, bufferSize);
                 struct ip *ip_header = ((struct ip *) buffer);
+                ip_header->ip_ttl--;
                 //printf("%s\n", buffer);
                 //printf("%u\n", ip_header->ip_ttl);
                 //printf("%s\n", inet_ntoa(ip_header->ip_src));
@@ -724,34 +725,38 @@ void router() {
                 queueEntry.buffer = (u_char*)malloc(bufferSize);
                 memcpy(queueEntry.buffer, bufferCopy, bufferSize);
                 //printf("%s\n", queueEntry.buffer + sizeof(struct ip) + sizeof(struct udphdr));
+
+
                 struct timeval delay;
                 //delay will differ based on where the packet is going
                 //just more info we need to parse from config file
                 delay.tv_sec = 1; 
+
+
                 timeradd(&delay, &currentTime, &queueEntry.deadLine);
                 
                 if (ip_header->ip_ttl > 0) {
-                    if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
+                    //if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
                         //send to real address of "4.5.6.1"
                         struct in_addr next;
-                        inet_aton("10.63.36.3", &next);
-                        printf("Enqueuing\n");
-                        struct ip* ipHeader = (struct ip*)queueEntry.buffer;
-                        std::string str(inet_ntoa(ipHeader->ip_dst));
-                        std::cout << str << "\n";
-                        std::cout << gimme_real_ip(str) << "\n";
-                        std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
+                        std::string str(inet_ntoa(ip_header->ip_dst));
+                        inet_aton(next_step(ROUTER_IP, gimme_real_ip(str)).c_str(), &next);
+                        // printf("Enqueuing\n");
+                        // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
+                        // std::cout << str << "\n";
+                        // std::cout << gimme_real_ip(str) << "\n";
+                        // std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
                         queueEntry.next_hop = next;
                         //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                    }
-                    else {
+                    //}
+                    //else {
                         //else send to the other option
-                        printf("Enqueuing for other dest\n");
-                        struct in_addr next;
-                        inet_aton("10.63.36.4", &next);
-                        queueEntry.next_hop = next;
-                        //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                    }
+                    //     printf("Enqueuing for other dest\n");
+                    //     struct in_addr next;
+                    //     inet_aton("10.63.36.4", &next);
+                    //     queueEntry.next_hop = next;
+                    //     //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                    // }
                     queue.push(queueEntry);
                 }
                 else { // if it's zero, log
@@ -1077,6 +1082,7 @@ int create_cs3516_socket() {
     //ROUTER 3 - "10.63.36.13"
     //server.sin_addr.s_addr = inet_addr(ROUTER_IP);
     server.sin_addr.s_addr = INADDR_ANY;
+    //server.sin_addr.s_addr = "10.63.36.13";
     server.sin_port = htons(MYPORT);
     if (bind(sock, (struct sockaddr *) &server, sizeof(server) ) < 0)
         herror("Unable to bind CS3516 socket");
