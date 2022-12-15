@@ -38,6 +38,8 @@ using namespace std;
 // line 1/2: (helps determine router/host id)
 bool ID_FOUND = false;
 
+string IP_ADDRESS = "-1";
+
 
 /////// CONFIG FILE GLOBALS: EVERYTHING ////////
 // steps and distances for each router/host
@@ -108,6 +110,7 @@ int gimme_the_id(string);
 int is_router(string);
 string gimme_the_ip(int);
 string gimme_real_ip(string);
+int gimme_distance(string, string);
 
 struct packet {
     int bufferSize;
@@ -115,6 +118,18 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+/**
+ * gives the distance from starting to ending ip; Works!
+ * @param starting_ip real ip starting
+ * @param ending_ip real ip ending
+ * @return the dist between in that direction
+ */
+int gimme_distance(string starting_ip, string ending_ip) {
+    int starting_id = gimme_the_id(starting_ip);
+    int ending_id = gimme_the_id(ending_ip);
+    return(DISTANCES[starting_id][ending_id]);
+}
 
 /**
  * Takes a fake host ip, gives real ip of the host; UNTESTED
@@ -352,9 +367,9 @@ void read_config_router() {
                         if (word_num == 1) {
                             if (!ID_FOUND) { ROUTER_ID = stoi(word); }
                         }
-                        else if (word_num == 2) {
-                            if ((!ID_FOUND) && (word == ROUTER)) { ID_FOUND = true; }
-                        }
+                        //else if (word_num == 2) {
+                        //    if ((!ID_FOUND) && (word == ROUTER)) { ID_FOUND = true; }
+                        //}
 
                         break;
                     case 3:
@@ -436,9 +451,9 @@ void read_config_host() {
                         if (word_num == 1) {
                             if (!ID_FOUND) { HOST_ID = stoi(word); }
                         }
-                        if (word_num == 2) {
-                            if ((!ID_FOUND) && (ROUTER == word)) { ID_FOUND = true; }
-                        }
+                        //if (word_num == 2) {
+                        //    if ((!ID_FOUND) && (ROUTER == word)) { ID_FOUND = true; }
+                        //}
                         if (word_num == 3) {
                             if ((ID_FOUND) && (OVERLAY_FOUND == false)) {
                                 OVERLAY_IP = word;
@@ -967,9 +982,9 @@ int main (int argc, char **argv) {
     read_config_all();
 
     //test_config_all();
-    //cout << gimme_real_ip("7.8.9.1") << "\n";
+    //cout << gimme_distance("10.0.2.103","10.0.2.101") << "\n";
 
-    //return 0;
+    return 0;
 
     // TODO END TESTING
 
@@ -977,9 +992,25 @@ int main (int argc, char **argv) {
     // test if end-host or router
     std::string arg1 = argv[1];
 
+    if (0 <= stoi(arg1) <= 2) {
+        ROUTER_ID = stoi(arg1);
+        IP_ADDRESS = gimme_the_ip(ROUTER_ID);
+        router();
+    }
+    else if (3 <= stoi(arg1) <= 5) {
+        HOST_ID = stoi(arg1);
+        IP_ADDRESS = gimme_the_ip(HOST_ID);
+        endhost();
+    }
+    else {
+        cout << "There are only 6 routers/hosts. Input a number between 0 and 5, inclusive.\n";
+    }
+
+    /*
     if (arg1 == "r") { router(); }
     else if (arg1 == "h") { endhost(); }
     else { printf("please input r or h.\n"); return 0; }
+     */
 
     return 0;
 }
