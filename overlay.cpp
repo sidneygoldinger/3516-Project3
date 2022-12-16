@@ -31,8 +31,8 @@ using namespace std;
 #define MYPORT 5950
 #define NEXT_HOP "10.63.36.2" //temporary constant for testing
 #define ROUTER "10.63.36.1"
-#define SOURCE "1.2.3.1"
-#define DEST "4.5.6.1"
+string SOURCE = "1.2.3.1";
+string DEST = "4.5.6.1";
 #define ROUTER_IP "10.63.36.1"
 
 ////// CONFIG FILE GLOBALS: BOTH ////////
@@ -114,6 +114,7 @@ string gimme_real_ip(string);
 int gimme_distance(string, string);
 void do_the_log(string, string, int, string);
 bool can_find_host(string);
+void read_send_config();
 
 struct packet {
     int bufferSize;
@@ -121,6 +122,39 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+void read_send_config() {
+    // open file
+    fstream configFile;
+    configFile.open("config.txt",ios::in);
+    if(configFile.is_open()) {
+        string line;
+
+        // go through lines
+        while (getline(configFile, line)) {
+            istringstream iss(line);
+            bool is_first_num = true;
+            int word_num = 0;
+
+            // go through words in the line
+            do {
+                // get the word in the line
+                string word;
+                iss >> word;
+
+                if (word_num == 0) {
+                    DEST = word;
+                }
+                else if (word_num == 1) {
+                    SOURCE = word;
+                }
+                // we think that 3 is unnecessary
+
+                word_num++;
+            } while (iss);
+        }
+    }
+}
 
 bool can_find_host(string host_ip) {
     for (int i = 0; i < 6; i++) {
@@ -1002,6 +1036,8 @@ int main (int argc, char **argv) {
 
     //cout << "TESTING \n\n";
     read_config_all();
+    //read_send_config();
+    //cout << DEST << " " << SOURCE << " ";
 
     //test_config_all();
     //cout << gimme_distance("10.0.2.103","10.0.2.101") << "\n";
