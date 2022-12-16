@@ -778,32 +778,39 @@ void router() {
 
                 timeradd(&delay, &currentTime, &queueEntry.deadLine);
                 
+                printf("ttl: %d\n", ip_header->ip_ttl);
                 if (ip_header->ip_ttl > 0) {
                     //if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
                         //send to real address of "4.5.6.1"
                         struct in_addr next;
                         std::string str(inet_ntoa(ip_header->ip_dst));
-                        inet_aton(next_step(IP_ADDRESS, gimme_real_ip(str)).c_str(), &next);
-                        // printf("Enqueuing\n");
-                        // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
-                        // std::cout << str << "\n";
-                        // std::cout << gimme_real_ip(str) << "\n";
-                        // std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
-                        queueEntry.next_hop = next;
-                        //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                    //}
-                    //else {
-                        //else send to the other option
-                    //     printf("Enqueuing for other dest\n");
-                    //     struct in_addr next;
-                    //     inet_aton("10.63.36.4", &next);
-                    //     queueEntry.next_hop = next;
-                    //     //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                    // }
-                    queue.push(queueEntry);
+                        if(can_find_host(str)) {
+                            inet_aton(next_step(IP_ADDRESS, gimme_real_ip(str)).c_str(), &next);
+                            // printf("Enqueuing\n");
+                            // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
+                            // std::cout << str << "\n";
+                            // std::cout << gimme_real_ip(str) << "\n";
+                            // std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
+                            queueEntry.next_hop = next;
+                            //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                            //}
+                            //else {
+                                //else send to the other option
+                            //     printf("Enqueuing for other dest\n");
+                            //     struct in_addr next;
+                            //     inet_aton("10.63.36.4", &next);
+                            //     queueEntry.next_hop = next;
+                            //     //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                            // }
+                            queue.push(queueEntry);
+                        } else {
+                            std::string sourceLog(inet_ntoa(ip_header->ip_src));
+                            std::string destLog(inet_ntoa(ip_header->ip_dst));
+                            do_the_log(sourceLog, destLog, ip_header->ip_id, "NO_ROUTE_TO_HOST");
+                        }
                 }
                 else { // if it's zero, log
-                
+                    printf("packet dropped beacuse ttl was <= 0\n");
                     std::string sourceLog(inet_ntoa(ip_header->ip_src));
                     std::string destLog(inet_ntoa(ip_header->ip_dst));
                     do_the_log(sourceLog, destLog, ip_header->ip_id, "TTL_EXPIRED");
@@ -956,7 +963,7 @@ void endhost() {
         struct ip ip_hdr;
         ip_hdr.ip_ttl = 3;               //from config
         if(i == 3) {
-            ip_hdr.ip_ttl = 0;           //intentionally drop the fourth packet for testing
+            ip_hdr.ip_ttl = 1;           //intentionally drop the fourth packet for testing
         }
         ip_hdr.ip_src = sourceIP;
         ip_hdr.ip_dst = destIP;          //from send_config
