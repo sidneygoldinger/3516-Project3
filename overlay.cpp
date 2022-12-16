@@ -28,12 +28,12 @@
 using namespace std;
 
 // Set the following port to a unique number:
-#define MYPORT 5950
 #define NEXT_HOP "10.63.36.2" //temporary constant for testing
-#define ROUTER "10.63.36.12"  //for host to send to 
-#define SOURCE "1.2.3.1"
-#define DEST "4.5.6.1"
-#define ROUTER_IP "10.63.36.13"  //for routers to bind to
+#define ROUTER "10.63.36.1" // for host to send to
+string SOURCE = "1.2.3.1";
+string DEST = "4.5.6.1";
+int MYPORT = 5950;
+#define ROUTER_IP "10.63.36.1" // for routers to bind to
 
 ////// CONFIG FILE GLOBALS: BOTH ////////
 // line 1/2: (helps determine router/host id)
@@ -114,6 +114,7 @@ string gimme_real_ip(string);
 int gimme_distance(string, string);
 void do_the_log(string, string, int, string);
 bool can_find_host(string);
+void read_send_config();
 
 struct packet {
     u_int32_t lengthOfFile;
@@ -122,6 +123,39 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+void read_send_config() {
+    // open file
+    fstream configFile;
+    configFile.open("send_config.txt",ios::in);
+    if(configFile.is_open()) {
+        string line;
+
+        // go through lines
+        while (getline(configFile, line)) {
+            istringstream iss(line);
+            bool is_first_num = true;
+            int word_num = 0;
+
+            // go through words in the line
+            do {
+                // get the word in the line
+                string word;
+                iss >> word;
+
+                if (word_num == 0) {
+                    DEST = word;
+                }
+                else if (word_num == 1) {
+                    MYPORT = stoi(word);
+                }
+                // we think that 3 is unnecessary
+
+                word_num++;
+            } while (iss);
+        }
+    }
+}
 
 bool can_find_host(string host_ip) {
     for (int i = 0; i < 6; i++) {
@@ -757,7 +791,7 @@ void router() {
 
                 //print data (won't always make sense to print it this way)
                 //printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
-                u_char* bufferCopy = (u_char*)malloc(bufferSize); 
+                u_char* bufferCopy = (u_char*)malloc(bufferSize);
                 memcpy(bufferCopy, buffer, bufferSize);
                 queueEntry.buffer = (u_char*)malloc(bufferSize);
                 memcpy(queueEntry.buffer, bufferCopy, bufferSize);
@@ -770,11 +804,11 @@ void router() {
                 std::string str(inet_ntoa(ip_header->ip_dst));
                 int delayMs = gimme_distance(IP_ADDRESS, next_step(IP_ADDRESS, gimme_real_ip(str)));
                 printf("delay in ms: %d\n", delayMs);
-                delay.tv_sec = 1; 
+                delay.tv_sec = 1;
 
 
                 timeradd(&delay, &currentTime, &queueEntry.deadLine);
-                
+
                 printf("ttl: %d\n", ip_header->ip_ttl);
                 if (ip_header->ip_ttl > 0) {
                     //if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
@@ -823,7 +857,7 @@ void router() {
                 do_the_log(sourceLog, destLog, ip_header->ip_id, "MAX_SENDQ_EXCEEDED");
             }
         }
-        
+
     }
 
 }
@@ -858,7 +892,7 @@ void router() {
 
 void endhost() {
     fd_set read_fd;
-    // end hosts should be able to send data across the network 
+    // end hosts should be able to send data across the network
     // and receive data from the router it is directly connected to
 
     // reading send_config
@@ -885,8 +919,8 @@ void endhost() {
     struct in_addr destIP;
     std::queue<struct packet> queue;
     inet_aton(ROUTER, &inp);
-    inet_aton(SOURCE, &sourceIP);
-    inet_aton(DEST, &destIP);
+    inet_aton(SOURCE.c_str(), &sourceIP);
+    inet_aton(DEST.c_str(), &destIP);
     struct timeval timeout;
     bool stillSending = true;
 
@@ -902,7 +936,7 @@ void endhost() {
     u_int32_t* lengthP = &length;
     rewind(body);
 
-    
+
     int numPacketsToSend = (length/1000) + 1;
     int numPacketsToReceive = 0;
     int highestPacketReceived = 0;
@@ -930,7 +964,7 @@ void endhost() {
         printf("host dest: %s\n", inet_ntoa(queueEntry.next_hop));
         std::string ending_ip(inet_ntoa(queueEntry.next_hop));
         printf("host delay: %d\n", gimme_distance(IP_ADDRESS, ending_ip));
-        delay.tv_sec = 3; 
+        delay.tv_sec = 3;
         timeradd(&delay, &currentTime, &queueEntry.deadLine);
 
         int bufferSize = 1000; //send 1000 bytes of the file at a time
@@ -986,7 +1020,7 @@ void endhost() {
         // sending IP things
         //send length of data first
 
-        u_char* bufferCopy = (u_char*)malloc(concatBufferSize); 
+        u_char* bufferCopy = (u_char*)malloc(concatBufferSize);
         memcpy(bufferCopy, concatBuffer, concatBufferSize);
         //printf("before\n");
         queueEntry.buffer = (u_char*)malloc(concatBufferSize);
@@ -1017,7 +1051,7 @@ void endhost() {
                         }
 
                         //send data (with headers) over the network then pop the packet off the queue to move to the next
-                        //if the queue is empty, we are done sending 
+                        //if the queue is empty, we are done sending
                         printf("Attempting to send() data...\n");
 
                         if(cs3516_send(sockfd, queue.front().buffer, queue.front().bufferSize, queue.front().next_hop.s_addr) == -1) {
@@ -1027,7 +1061,7 @@ void endhost() {
                         queue.pop();
                     }
                 } else {
-                    stillSending = false;   
+                    stillSending = false;
                 }
             }
         } else if(r < 0) {
@@ -1047,7 +1081,7 @@ void endhost() {
             //length will be the total size of the file being sent (in multiple packets most likely)
             cs3516_recv(sockfd, &length, sizeof(u_int32_t));
             cs3516_recv(sockfd, buffer, bufferSize);
-            
+
             struct ip *ip_header = ((struct ip *) buffer);
             if(ip_header->ip_id == 0) {
                 numPacketsToReceive = (length/1000) + 1;
@@ -1078,7 +1112,7 @@ void endhost() {
                 }
             }
         }
-            
+
     }
 
 }
@@ -1093,9 +1127,13 @@ int main (int argc, char **argv) {
     //read_config_host();
     //test_config_host();
 
-
+    read_send_config();
+    cout << SOURCE << "\n";
+    cout << DEST << "\n";
     //cout << "TESTING \n\n";
     read_config_all();
+    //read_send_config();
+    //cout << DEST << " " << SOURCE << " ";
 
     //test_config_all();
     //cout << gimme_distance("10.0.2.103","10.0.2.101") << "\n";
