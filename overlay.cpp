@@ -111,6 +111,7 @@ int is_router(string);
 string gimme_the_ip(int);
 string gimme_real_ip(string);
 int gimme_distance(string, string);
+void do_the_log(int, string, string, int, string);
 
 struct packet {
     int bufferSize;
@@ -118,6 +119,15 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+void do_the_log(int unixtime, string source_overlay_ip, string dest_overlay_ip,
+                int ip_ident, string status_code) {
+    std::ofstream outfile;
+
+    outfile.open("ROUTER_control.txt", std::ios_base::app);
+    outfile << unixtime << " " << source_overlay_ip << " " << dest_overlay_ip;
+    outfile << " " << ip_ident << " " << status_code << "\n";
+}
 
 /**
  * gives the distance from starting to ending ip; Works!
