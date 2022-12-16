@@ -705,13 +705,10 @@ void router() {
                 //printf("%s\n", inet_ntoa(queue.front().next_hop));
                 if(timercmp(&currentTime, &queue.front().deadLine, >=)){
                     printf("Forwarding! (to: %s)\n", inet_ntoa(queue.front().next_hop));
-                    of.open("router_log.txt", ios::app);
-                    if (!of) { cout << "No such file found"; }
-                    else {
-                        of << " Packet succcessfully forwarded. \n";
-                        of.close();
-
-                    }
+                    struct ip *ip_header = ((struct ip *) queue.front().buffer);
+                    std::string sourceLog(inet_ntoa(ip_header->ip_src));
+                    std::string destLog(inet_ntoa(ip_header->ip_dst));
+                    do_the_log(sourceLog, destLog, ip_header->ip_id, "SEND_OKAY");
 
                     //also send length of file here
                     if(cs3516_send(sockfd, &queue.front().lengthOfFile, sizeof(u_int32_t), queue.front().next_hop.s_addr) == -1) {
@@ -820,13 +817,10 @@ void router() {
                 cs3516_recv(sockfd, &length, sizeof(u_int32_t));
                 memset(buffer, 0, bufferSize);
                 cs3516_recv(sockfd, buffer, bufferSize);
-                of.open("router_log.txt", ios::app);
-                    if (!of) { cout << "No such file found"; }
-                    else {
-                        of << " Packet dropped because queue was full. \n";
-                        of.close();
-
-                    }
+                struct ip *ip_header = ((struct ip *) buffer);
+                std::string sourceLog(inet_ntoa(ip_header->ip_src));
+                std::string destLog(inet_ntoa(ip_header->ip_dst));
+                do_the_log(sourceLog, destLog, ip_header->ip_id, "MAX_SENDQ_EXCEEDED");
             }
         }
         
