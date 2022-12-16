@@ -336,7 +336,7 @@ void test_config_host() {
 void read_config_router() {
     // open file
     fstream configFile;
-    configFile.open("send_config.txt",ios::in);
+    configFile.open("config.txt",ios::in);
     if(configFile.is_open()) {
         string line;
 
@@ -422,7 +422,7 @@ void read_config_router() {
 void read_config_host() {
     // open file
     fstream configFile;
-    configFile.open("send_config.txt",ios::in);
+    configFile.open("config.txt",ios::in);
     if(configFile.is_open()) {
         string line;
         while(getline(configFile, line)) {
@@ -527,7 +527,7 @@ void read_config_all() {
 
     // open file
     fstream configFile;
-    configFile.open("send_config.txt",ios::in);
+    configFile.open("config.txt",ios::in);
     if(configFile.is_open()) {
         string line;
         while(getline(configFile, line)) {
