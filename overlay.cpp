@@ -113,6 +113,7 @@ string gimme_the_ip(int);
 string gimme_real_ip(string);
 int gimme_distance(string, string);
 void do_the_log(string, string, int, string);
+bool can_find_host(string);
 
 struct packet {
     int bufferSize;
@@ -120,6 +121,13 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+bool can_find_host(string host_ip) {
+    for (int i = 0; i < 6; i++) {
+        if (HOST_IPS[i] == host_ip) { return true; }
+    }
+    return false;
+}
 
 void do_the_log(string source_overlay_ip, string dest_overlay_ip,
                 int ip_ident, string status_code) {
