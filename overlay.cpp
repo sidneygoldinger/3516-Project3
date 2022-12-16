@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <queue>
 #include <map>
+#include <chrono>
 using namespace std;
 
 // Set the following port to a unique number:
@@ -111,6 +112,7 @@ int is_router(string);
 string gimme_the_ip(int);
 string gimme_real_ip(string);
 int gimme_distance(string, string);
+void do_the_log(string, string, int, string);
 
 struct packet {
     u_int32_t lengthOfFile;
@@ -119,6 +121,18 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+void do_the_log(string source_overlay_ip, string dest_overlay_ip,
+                int ip_ident, string status_code) {
+    const auto p1 = std::chrono::system_clock::now();
+    int unix_time = std::chrono::duration_cast<std::chrono::seconds>(p1.time_since_epoch()).count();
+
+    std::ofstream outfile;
+
+    outfile.open("ROUTER_control.txt", std::ios_base::app);
+    outfile << unix_time << " " << source_overlay_ip << " " << dest_overlay_ip;
+    outfile << " " << ip_ident << " " << status_code << "\n";
+}
 
 /**
  * gives the distance from starting to ending ip; Works!
