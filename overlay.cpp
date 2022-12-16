@@ -115,6 +115,7 @@ int gimme_distance(string, string);
 void do_the_log(string, string, int, string);
 bool can_find_host(string);
 void read_send_config();
+string gimme_fake_ip(string);
 
 struct packet {
     u_int32_t lengthOfFile;
@@ -201,6 +202,16 @@ string gimme_real_ip(string fake_ip) {
     }
     //cout << id << "\n";
     return HOST_IPS[id+3];
+}
+
+string gimme_fake_ip(string real_ip) {
+    // fake ip
+    int id = -1;
+    for (int b = 3; b < 6; b++) {
+        if (real_ip == HOST_IPS[b]) { id = b; }
+    }
+    //cout << id << "\n";
+    return HOST_IPS[id-3];
 }
 
 /**
