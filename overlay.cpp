@@ -795,13 +795,10 @@ void router() {
                     queue.push(queueEntry);
                 }
                 else { // if it's zero, log
-                    of.open("router_log.txt", ios::app);
-                    if (!of) { cout << "No such file found"; }
-                    else {
-                        of << " Packet dropped because ttl = 0. \n";
-                        of.close();
-
-                    }
+                
+                    std::string sourceLog(inet_ntoa(ip_header->ip_src));
+                    std::string destLog(inet_ntoa(ip_header->ip_dst));
+                    do_the_log(sourceLog, destLog, ip_header->ip_id, "TTL_EXPIRED");
                 }
             } else {
                 //recv the data so that more can be recvd
@@ -950,9 +947,9 @@ void endhost() {
         u_char ipHeaderBuffer[ipHeaderBufferSize];
         struct ip ip_hdr;
         ip_hdr.ip_ttl = 3;               //from config
-        // if(i == 3) {
-        //     ip_hdr.ip_ttl = 0;           //intentionally drop the fourth packet for testing
-        // }
+        if(i == 3) {
+            ip_hdr.ip_ttl = 0;           //intentionally drop the fourth packet for testing
+        }
         ip_hdr.ip_src = sourceIP;
         ip_hdr.ip_dst = destIP;          //from send_config
         ip_hdr.ip_id = i;               //increase for each consequtive packet
