@@ -115,6 +115,7 @@ int gimme_distance(string, string);
 void do_the_log(string, string, int, string);
 bool can_find_host(string);
 void read_send_config();
+string gimme_fake_ip(string);
 
 struct packet {
     u_int32_t lengthOfFile;
@@ -147,6 +148,7 @@ void read_send_config() {
                     DEST = word;
                 }
                 else if (word_num == 1) {
+                    printf("%s\n", word.c_str());
                     MYPORT = stoi(word);
                 }
                 // we think that 3 is unnecessary
@@ -201,6 +203,16 @@ string gimme_real_ip(string fake_ip) {
     }
     //cout << id << "\n";
     return HOST_IPS[id+3];
+}
+
+string gimme_fake_ip(string real_ip) {
+    // fake ip
+    int id = -1;
+    for (int b = 3; b < 6; b++) {
+        if (real_ip == HOST_IPS[b]) { id = b; }
+    }
+    //cout << id << "\n";
+    return HOST_IPS[id-3];
 }
 
 /**
@@ -687,8 +699,9 @@ void router() {
     printf("router\n");
     printf("Attempting to create a socket...\n");
     int sockfd = create_cs3516_socket();
-    int maxQueueSize = 3; //read from config file
     std::queue<struct packet> queue;
+    int maxQueueSize = QUEUE_LENGTH; //read from config file
+    printf("Queue length: %d\n", maxQueueSize);
     std::map<std::string, std::string> map8;
     std::map<std::string, std::string> map16;
     std::map<std::string, std::string> map24;
@@ -733,6 +746,7 @@ void router() {
         int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
         if(r == 0) {
             //timeout, check the queue
+            //printf("checking the queue\n");
             if(queue.size() > 0) {
                 //printf("%s\n", queue.front().buffer + sizeof(struct ip) + sizeof(struct udphdr));
                 //printf("%d\n", queue.front().bufferSize);
@@ -760,6 +774,7 @@ void router() {
             printf("error\n");
         } else {
             printf("queue size: %ld\n", queue.size());
+            printf("mqx size: %d\n", maxQueueSize);
             if(queue.size() < maxQueueSize) {
                 //printf("tyring to recv()\n");
                 //ready to recvfrom() something
@@ -802,12 +817,16 @@ void router() {
                 //delay will differ based on where the packet is going
                 //just more info we need to parse from config file
                 std::string str(inet_ntoa(ip_header->ip_dst));
-                int delayMs = gimme_distance(IP_ADDRESS, next_step(IP_ADDRESS, gimme_real_ip(str)));
-                printf("delay in ms: %d\n", delayMs);
-                delay.tv_sec = 1;
+                long int delayMs = gimme_distance(IP_ADDRESS, next_step(IP_ADDRESS, gimme_real_ip(str)));
+                printf("delay in ms: %ld\n", delayMs);
+                delay.tv_sec = 10;
+                delay.tv_usec = delayMs * 1000;
+                printf("%ld\n", delay.tv_usec);
+                
 
 
                 timeradd(&delay, &currentTime, &queueEntry.deadLine);
+
 
                 printf("ttl: %d\n", ip_header->ip_ttl);
                 if (ip_header->ip_ttl > 0) {
@@ -932,9 +951,10 @@ void endhost() {
     //find the size of the file we are going to send
     fseek(body, 0, SEEK_END);
     u_int32_t length = ftell(body);
-    printf("length: %d\n", length);
+    printf("length of file to transmit: %d\n", length);
     u_int32_t* lengthP = &length;
     rewind(body);
+
 
 
     int numPacketsToSend = (length/1000) + 1;
@@ -944,7 +964,7 @@ void endhost() {
     struct timeval currentTime;
 
 
-    printf("num packets: %d\n", numPacketsToSend);
+    printf("num packets to transmit: %d\n", numPacketsToSend);
     for(int i = 0; i < numPacketsToSend; i ++) {
         struct packet queueEntry;
         struct in_addr next;
@@ -964,7 +984,8 @@ void endhost() {
         printf("host dest: %s\n", inet_ntoa(queueEntry.next_hop));
         std::string ending_ip(inet_ntoa(queueEntry.next_hop));
         printf("host delay: %d\n", gimme_distance(IP_ADDRESS, ending_ip));
-        delay.tv_sec = 3;
+        delay.tv_sec = 0;
+        delay.tv_usec = 1000*gimme_distance(IP_ADDRESS, ending_ip);
         timeradd(&delay, &currentTime, &queueEntry.deadLine);
 
         int bufferSize = 1000; //send 1000 bytes of the file at a time
@@ -1088,6 +1109,7 @@ void endhost() {
                 highestPacketReceived = 0;
                 packetHasArrived = (bool *)malloc(sizeof(bool) * numPacketsToReceive);
                 packetHasArrived[0] = true;
+                printf("packet num: %d\n", highestPacketReceived);
                 //resest file/make new file?
             } else {
                 highestPacketReceived = ip_header->ip_id;
@@ -1132,6 +1154,8 @@ int main (int argc, char **argv) {
     cout << DEST << "\n";
     //cout << "TESTING \n\n";
     read_config_all();
+    read_config_router();
+    read_config_host();
     //read_send_config();
     //cout << DEST << " " << SOURCE << " ";
 
