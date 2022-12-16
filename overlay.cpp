@@ -682,7 +682,7 @@ void router() {
                 //printf("%d\n", queue.front().bufferSize);
                 //printf("%s\n", inet_ntoa(queue.front().next_hop));
                 if(timercmp(&currentTime, &queue.front().deadLine, >=)){
-                    printf("Forwarding!\n");
+                    printf("Forwarding! (to: %s)\n", inet_ntoa(queue.front().next_hop));
                     of.open("router_log.txt", ios::app);
                     if (!of) { cout << "No such file found"; }
                     else {
@@ -697,13 +697,16 @@ void router() {
                         exit(1);
                     }
                     cs3516_send(sockfd, queue.front().buffer, queue.front().bufferSize, queue.front().next_hop.s_addr);
+                    printf("queue size before pop: %ld\n", queue.size());
                     queue.pop();
+                    printf("queue size after pop: %ld\n", queue.size());
                 }
             }
         } else if(r < 0) {
             //error
             printf("error\n");
         } else {
+            printf("queue size: %ld\n", queue.size());
             if(queue.size() < maxQueueSize) {
                 //printf("tyring to recv()\n");
                 //ready to recvfrom() something
@@ -730,8 +733,8 @@ void router() {
                 ip_header->ip_ttl--;
                 //printf("%s\n", buffer);
                 //printf("%u\n", ip_header->ip_ttl);
-                //printf("%s\n", inet_ntoa(ip_header->ip_src));
-                //printf("%s\n", inet_ntoa(ip_header->ip_dst));
+                std::string source(inet_ntoa(ip_header->ip_src));
+                std::string dest(inet_ntoa(ip_header->ip_dst));
 
                 //print data (won't always make sense to print it this way)
                 //printf("%s\n", buffer + sizeof(struct ip) + sizeof(struct udphdr));
@@ -745,6 +748,9 @@ void router() {
                 struct timeval delay;
                 //delay will differ based on where the packet is going
                 //just more info we need to parse from config file
+                std::string str(inet_ntoa(ip_header->ip_dst));
+                int delayMs = gimme_distance(IP_ADDRESS, next_step(IP_ADDRESS, gimme_real_ip(str)));
+                printf("delay in ms: %d\n", delayMs);
                 delay.tv_sec = 1; 
 
 
@@ -755,7 +761,7 @@ void router() {
                         //send to real address of "4.5.6.1"
                         struct in_addr next;
                         std::string str(inet_ntoa(ip_header->ip_dst));
-                        inet_aton(next_step(ROUTER_IP, gimme_real_ip(str)).c_str(), &next);
+                        inet_aton(next_step(IP_ADDRESS, gimme_real_ip(str)).c_str(), &next);
                         // printf("Enqueuing\n");
                         // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
                         // std::cout << str << "\n";
@@ -784,6 +790,10 @@ void router() {
                     }
                 }
             } else {
+                //recv the data so that more can be recvd
+                cs3516_recv(sockfd, &length, sizeof(u_int32_t));
+                memset(buffer, 0, bufferSize);
+                cs3516_recv(sockfd, buffer, bufferSize);
                 of.open("router_log.txt", ios::app);
                     if (!of) { cout << "No such file found"; }
                     else {
@@ -883,7 +893,10 @@ void endhost() {
     printf("num packets: %d\n", numPacketsToSend);
     for(int i = 0; i < numPacketsToSend; i ++) {
         struct packet queueEntry;
-        queueEntry.next_hop = inp;
+        struct in_addr next;
+        std::string destination(DEST);
+        inet_aton(next_step(IP_ADDRESS, destination).c_str(), &next);
+        queueEntry.next_hop = next;
         if(queue.size() == 0) {
             gettimeofday(&currentTime, NULL);
         } else {
@@ -893,7 +906,11 @@ void endhost() {
         struct timeval delay;
         //delay will differ based on where the packet is going
         //just more info we need to parse from config file
-        delay.tv_sec = 1; 
+        printf("host source: %s\n", IP_ADDRESS.c_str());
+        printf("host dest: %s\n", inet_ntoa(queueEntry.next_hop));
+        std::string ending_ip(inet_ntoa(queueEntry.next_hop));
+        printf("host delay: %d\n", gimme_distance(IP_ADDRESS, ending_ip));
+        delay.tv_sec = 3; 
         timeradd(&delay, &currentTime, &queueEntry.deadLine);
 
         int bufferSize = 1000; //send 1000 bytes of the file at a time
@@ -1063,7 +1080,7 @@ int main (int argc, char **argv) {
     //test_config_all();
     //cout << gimme_distance("10.0.2.103","10.0.2.101") << "\n";
 
-    return 0;
+    //return 0;
 
     // TODO END TESTING
 
@@ -1071,14 +1088,16 @@ int main (int argc, char **argv) {
     // test if end-host or router
     std::string arg1 = argv[1];
 
-    if (0 <= stoi(arg1) <= 2) {
+    if (stoi(arg1) <= 2) {
         ROUTER_ID = stoi(arg1);
         IP_ADDRESS = gimme_the_ip(ROUTER_ID);
+        printf("router ip address: %s\n", IP_ADDRESS.c_str());
         router();
     }
-    else if (3 <= stoi(arg1) <= 5) {
+    else if (stoi(arg1) >= 3 && stoi(arg1) <= 5) {
         HOST_ID = stoi(arg1);
         IP_ADDRESS = gimme_the_ip(HOST_ID);
+        printf("host ip address: %s\n", IP_ADDRESS.c_str());
         endhost();
     }
     else {
@@ -1112,7 +1131,7 @@ int create_cs3516_socket() {
     //ROUTER 2 - "10.63.36.12"
     //ROUTER 3 - "10.63.36.13"
     //server.sin_addr.s_addr = inet_addr(ROUTER_IP);
-    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_addr.s_addr = inet_addr(IP_ADDRESS.c_str());
     //server.sin_addr.s_addr = "10.63.36.13";
     server.sin_port = htons(MYPORT);
     if (bind(sock, (struct sockaddr *) &server, sizeof(server) ) < 0)
