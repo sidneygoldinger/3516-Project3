@@ -215,7 +215,7 @@ string next_step_two(string starting_ip, string host_ip) {
 
     // do the matching thing, find the closest
     // BINARY_IPS[6] contains each string of binary
-    int tested_ip = gimme_the_id(starting_ip);
+    int tested_ip = gimme_the_id(host_ip);
     int num_similar[6] = {-1,-1,-1,-1,-1,-1};
     string tested_binary = BINARY_IPS[tested_ip];
 
@@ -243,13 +243,12 @@ string next_step_two(string starting_ip, string host_ip) {
     int closest_so_far = 0;
 
     for (int o = 0; o < 6; o++) {
-        if (o != tested_ip) {
+        if ((o != tested_ip) && (DISTANCES[gimme_the_id(starting_ip)][o] != -1)) {
             if (num_similar[o] > num_similar[closest_so_far]) {
                 closest_so_far = o;
             }
         }
     }
-
 
     // return the ip of the closest
     return gimme_the_ip(closest_so_far);
