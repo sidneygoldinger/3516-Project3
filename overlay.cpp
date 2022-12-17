@@ -65,6 +65,9 @@ string HOST_FAKE_IPS [6] = {"host_fake_ip_1", "host_fake_ip_2",
                             "host_fake_ip_3", "host_fake_ip_4", "host_fake_ip_5",
                             "host_fake_ip_6" };
 
+string BINARY_IPS [6] = {"fake_binary_ip","fake_binary_ip","fake_binary_ip","fake_binary_ip",
+                         "fake_binary_ip","fake_binary_ip"};
+
 /////// CONFIG FILE GLOBALS: ROUTER ////////
 // line 0:
 int QUEUE_LENGTH = -1;
@@ -116,6 +119,8 @@ void do_the_log(string, string, int, string);
 bool can_find_host(string);
 void read_send_config();
 string gimme_fake_ip(string);
+string next_step_two(string,string);
+void binary_conversion(int);
 
 struct packet {
     u_int32_t lengthOfFile;
@@ -124,6 +129,131 @@ struct packet {
     struct in_addr next_hop;
     u_char* buffer;
 };
+
+
+void binary_conversion(int which_ip) {
+    string ip, mask;
+    string ip_string[4];
+    int bin[4];
+    string bin_string[4];
+    int ip_int[4], length[4];
+
+    // ip is:
+    ip = "10.4.1.0"; // default
+    for (int i = 0; i < 3; i++) {
+        if (which_ip == i) { ip = ROUTER_IPS[i]; }
+    }
+    for (int j = 3; j < 6; j++) {
+        if (which_ip == j) { ip = HOST_IPS[j]; }
+    }
+
+    //get_ip(); // necessary: ip_int[4] are the things
+    for(int i = 0; i<4; i++){
+
+        ip_int[i] = stoi(ip.substr(0, '.'));
+        //cout<<ip_int[i]<<" ";
+        string z = to_string(ip_int[i]);
+        int ln = z.length();
+        ip.erase(0, ln+1);
+    }
+
+    //dec(); // does the binary conversion to ints
+
+    int this_bin =0;
+    int num = 0;
+    int i=1;
+    for(int  s=0; s<4; s++)
+    {
+        while(ip_int[s] >0 ){
+            this_bin += (ip_int[s]%2)*i;
+            ip_int[s] = ip_int[s]/2;
+            i*=10;
+        }
+        //cout <<this_bin<<endl;
+        bin[num] = this_bin;
+        this_bin = 0;
+        num++;
+        i=1;
+    }
+
+    cout << "\n" << bin[0] << " " << bin[1] << " " << bin[2] << " " << bin[3] << "\n";
+
+    // std::string s = std::to_string(42);
+    for (int a = 0; a < 4; a++) {
+        bin_string[a] = std::to_string(bin[a]);
+    }
+
+    // to make the strings each 8 characters long (str.length());
+    for (int b = 0; b < 4; b++) {
+        while (bin_string[b].length() < 8) {
+            bin_string[b] = "0" + bin_string[b];
+        }
+    }
+
+    cout << "\n" << bin_string[0] << " " << bin_string[1] << " " << bin_string[2] << " " << bin_string[3] << "\n";
+
+    string binary_ip = bin_string[0] + bin_string[1] + bin_string[2] + bin_string[3];
+    // put bin_string in appropriate global
+    BINARY_IPS[which_ip] = binary_ip;
+}
+
+string next_step_two(string starting_ip, string host_ip) {
+    // make an array of strings of all the real ips
+    string real_ips_strings[6] = {"-1","-1","-1","-1","-1","-1"};
+    for (int i = 0; i < 3; i++) {
+        real_ips_strings[i] = ROUTER_IPS[i];
+    }
+    for (int j = 3; j < 6; j++) {
+        real_ips_strings[j] = HOST_IPS[j];
+    }
+
+    // convert these into binary
+    for (int m = 0; m < 6; m++) {
+        binary_conversion(m);
+    }
+
+
+    // do the matching thing, find the closest
+    // BINARY_IPS[6] contains each string of binary
+    int tested_ip = gimme_the_id(starting_ip);
+    int num_similar[6] = {-1,-1,-1,-1,-1,-1};
+    string tested_binary = BINARY_IPS[tested_ip];
+
+    for (int n = 0; n < 6; n++) {
+        // if n = tested_ip, num_similar = -1
+        if (n == tested_ip) { num_similar[n] = -1; }
+        else {
+            bool same_so_far = true;
+            int num_similar_int = 0;
+            string testing_with_this_binary = BINARY_IPS[n];
+
+            while(same_so_far) {
+                if (tested_binary[num_similar_int] == testing_with_this_binary[num_similar_int]) {
+                    num_similar_int++;
+                }
+                else {
+                    same_so_far = false;
+                    num_similar[n] = num_similar_int;
+                }
+            }
+        }
+    }
+
+    // find the ip of the closest
+    int closest_so_far = 0;
+
+    for (int o = 0; o < 6; o++) {
+        if (o != tested_ip) {
+            if (num_similar[o] > num_similar[closest_so_far]) {
+                closest_so_far = o;
+            }
+        }
+    }
+
+
+    // return the ip of the closest
+    return gimme_the_ip(closest_so_far);
+}
 
 void read_send_config() {
     // open file
@@ -709,18 +839,18 @@ void router() {
     FILE* configFile = fopen("config.txt", "r");
     int routerID;
     //find self
-        //loop through all lines
-        //if starts with 1
-            //check last spot and compare with this routers real IP
-            //if found, the number in the second spot is this routers ID
+    //loop through all lines
+    //if starts with 1
+    //check last spot and compare with this routers real IP
+    //if found, the number in the second spot is this routers ID
     //find what devices this router is directly connected to
-        //check all lines that start with 3 or 4
-        //if second num == routerID
-            //if first num == 4
-                //map 4th spot to 5th num
-                //(prefix to host ID)
-            //if first num == 3
-                //map ovleray prefix of second num with second num
+    //check all lines that start with 3 or 4
+    //if second num == routerID
+    //if first num == 4
+    //map 4th spot to 5th num
+    //(prefix to host ID)
+    //if first num == 3
+    //map ovleray prefix of second num with second num
     //
 
     // file things
@@ -740,7 +870,7 @@ void router() {
         gettimeofday(&currentTime, NULL);
         long int ms = currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
         timeout.tv_sec = 0;
-		timeout.tv_usec = 10000;
+        timeout.tv_usec = 10000;
         FD_ZERO(&read_fd);
         FD_SET(sockfd, &read_fd);
         int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
@@ -819,10 +949,10 @@ void router() {
                 std::string str(inet_ntoa(ip_header->ip_dst));
                 long int delayMs = gimme_distance(IP_ADDRESS, next_step(IP_ADDRESS, gimme_real_ip(str)));
                 printf("delay in ms: %ld\n", delayMs);
-                delay.tv_sec = 10;
+                delay.tv_sec = 0;
                 delay.tv_usec = delayMs * 1000;
                 printf("%ld\n", delay.tv_usec);
-                
+
 
 
                 timeradd(&delay, &currentTime, &queueEntry.deadLine);
@@ -831,33 +961,33 @@ void router() {
                 printf("ttl: %d\n", ip_header->ip_ttl);
                 if (ip_header->ip_ttl > 0) {
                     //if (strcmp(inet_ntoa(ip_header->ip_dst), "4.5.6.1") == 0) {
-                        //send to real address of "4.5.6.1"
-                        struct in_addr next;
-                        std::string str(inet_ntoa(ip_header->ip_dst));
-                        if(can_find_host(str)) {
-                            inet_aton(next_step(IP_ADDRESS, gimme_real_ip(str)).c_str(), &next);
-                            // printf("Enqueuing\n");
-                            // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
-                            // std::cout << str << "\n";
-                            // std::cout << gimme_real_ip(str) << "\n";
-                            // std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
-                            queueEntry.next_hop = next;
-                            //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                            //}
-                            //else {
-                                //else send to the other option
-                            //     printf("Enqueuing for other dest\n");
-                            //     struct in_addr next;
-                            //     inet_aton("10.63.36.4", &next);
-                            //     queueEntry.next_hop = next;
-                            //     //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
-                            // }
-                            queue.push(queueEntry);
-                        } else {
-                            std::string sourceLog(inet_ntoa(ip_header->ip_src));
-                            std::string destLog(inet_ntoa(ip_header->ip_dst));
-                            do_the_log(sourceLog, destLog, ip_header->ip_id, "NO_ROUTE_TO_HOST");
-                        }
+                    //send to real address of "4.5.6.1"
+                    struct in_addr next;
+                    std::string str(inet_ntoa(ip_header->ip_dst));
+                    if(can_find_host(str)) {
+                        inet_aton(next_step(IP_ADDRESS, gimme_real_ip(str)).c_str(), &next);
+                        // printf("Enqueuing\n");
+                        // struct ip* ipHeader = (struct ip*)queueEntry.buffer;
+                        // std::cout << str << "\n";
+                        // std::cout << gimme_real_ip(str) << "\n";
+                        // std::cout << next_step(ROUTER_IP, gimme_real_ip(str)) << "\n";
+                        queueEntry.next_hop = next;
+                        //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                        //}
+                        //else {
+                        //else send to the other option
+                        //     printf("Enqueuing for other dest\n");
+                        //     struct in_addr next;
+                        //     inet_aton("10.63.36.4", &next);
+                        //     queueEntry.next_hop = next;
+                        //     //cs3516_send(sockfd, buffer, bufferSize, next.s_addr);
+                        // }
+                        queue.push(queueEntry);
+                    } else {
+                        std::string sourceLog(inet_ntoa(ip_header->ip_src));
+                        std::string destLog(inet_ntoa(ip_header->ip_dst));
+                        do_the_log(sourceLog, destLog, ip_header->ip_id, "NO_ROUTE_TO_HOST");
+                    }
                 }
                 else { // if it's zero, log
                     printf("packet dropped beacuse ttl was <= 0\n");
@@ -1055,11 +1185,12 @@ void endhost() {
     while(1) {
         gettimeofday(&currentTime, NULL);
         timeout.tv_sec = 0;
-		timeout.tv_usec = 10000;
+        timeout.tv_usec = 10000;
         FD_ZERO(&read_fd);
         FD_SET(sockfd, &read_fd);
         int r = select(sockfd + 1, &read_fd, NULL, NULL, &timeout);
         if(r == 0) {
+            printf("tyring to send\n");
             if(stillSending) {
                 if(queue.size() > 0) {
                     //printf("looking in queue\n");
@@ -1083,6 +1214,13 @@ void endhost() {
                     }
                 } else {
                     stillSending = false;
+                }
+            }
+            if(highestPacketReceived != numPacketsToReceive-1) {
+                for(int i = 0; i < numPacketsToReceive; i ++) {
+                    if(!packetHasArrived[i]) {
+                        printf("Packet with ident #: %d lost!\n", i);
+                    }
                 }
             }
         } else if(r < 0) {
@@ -1109,6 +1247,7 @@ void endhost() {
                 highestPacketReceived = 0;
                 packetHasArrived = (bool *)malloc(sizeof(bool) * numPacketsToReceive);
                 packetHasArrived[0] = true;
+                received = fopen("received", "w");
                 printf("packet num: %d\n", highestPacketReceived);
                 //resest file/make new file?
             } else {
@@ -1150,8 +1289,8 @@ int main (int argc, char **argv) {
     //test_config_host();
 
     read_send_config();
-    cout << SOURCE << "\n";
-    cout << DEST << "\n";
+    //cout << SOURCE << "\n";
+    //cout << DEST << "\n";
     //cout << "TESTING \n\n";
     read_config_all();
     read_config_router();
